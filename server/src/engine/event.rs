@@ -3,12 +3,14 @@ use crate::engine::card::AustraliaCards;
 use super::card::Card;
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Debug,Clone,Copy)]
 pub enum Event {
     Deal(AustraliaCards),
     ListLobby,
     CreateLobby,
     JoinLobby(u8),
+    KeepAlive,
+    KeepAliveResponse,
 }
 
 /// Enumerates all of the possible errors for the [`Event`] enum
@@ -33,6 +35,8 @@ impl<'a> Into<Vec<u8>> for &'a Event {
                 vec![3]
             }
             JoinLobby(id) => Vec::from([4, *id]),
+            KeepAlive => vec![5],
+            KeepAliveResponse => vec![6],
         }
     }
 }
@@ -43,6 +47,7 @@ impl TryInto<Event> for Vec<u8> {
         use Event::*;
         // First element identifies type of event
         match self[0] {
+            0 => Ok(KeepAlive),
             1 => match self.len() > 1 {
                 false => Err(EventError::InvalidBitStream),
                 _ => match AustraliaCards::from_u8(&self[1..]) {
@@ -56,6 +61,8 @@ impl TryInto<Event> for Vec<u8> {
                 true => Ok(JoinLobby(self[1])),
                 false => Err(EventError::InvalidBitStream),
             },
+            5 => Ok(KeepAlive),
+            6 => Ok(KeepAliveResponse),
             _ => Err(EventError::InvalidBitStream),
         }
     }

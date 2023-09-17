@@ -10,10 +10,10 @@ s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((HOST, PORT))
     my_bytes = bytearray()
-    my_bytes.append(3)
+    my_bytes.append(6)
+    while 1:
 
-    s.send(my_bytes)
-    data = s.recv(1024)
-    print(f"{data}")
-    s.send(data);
+        data = s.recv(1024)
+        s.send(my_bytes)
+        print(f"{data}")
 
