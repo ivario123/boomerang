@@ -14,4 +14,5 @@ async fn main() {
     };
     engine::manager(listener).await;
     println!("Hello world");
+    loop {}
 }

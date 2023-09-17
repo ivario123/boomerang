@@ -1,11 +1,13 @@
 use crate::engine::event::Event;
 use async_trait::async_trait;
 use std::sync::Mutex;
-use std::{future::Future, io::Read, io::Write, net::TcpStream, pin::Pin};
+use std::{future::Future, io::Read, io::Write, pin::Pin};
 use tokio;
-use tokio::sync::broadcast::{Receiver, Sender, self};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::net::{tcp::ReadHalf, tcp::WriteHalf, TcpStream};
+use tokio::sync::broadcast::{self, Receiver, Sender};
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum PlayerError {
     /// Thrown when no response was delivered within the acceptable time
     TimeOut,
@@ -17,40 +19,61 @@ pub enum PlayerError {
     Disconnected,
 }
 
-#[derive(Debug,Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Message {
     Recived {
-        event: Result<Event,PlayerError>,
+        event: Result<Event, PlayerError>,
         user: usize,
     },
 }
 
 trait Connected {}
 trait Disconnected {}
+#[async_trait]
+pub trait Reciver: std::fmt::Debug + Send{
+    fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError>;
+    async fn recive(mut self) -> Result<(), PlayerError>;
+
+}
 
 #[async_trait]
-pub trait Player: std::fmt::Debug {
+pub trait Player: std::fmt::Debug +Send{
     fn getid(&self) -> usize;
     async fn send(&mut self, event: Event) -> Result<(), PlayerError>;
-    fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError>;
-    async fn recive(&mut self) -> Result<(), PlayerError>;
 }
+pub trait Splittable{
+    fn split<T:Reciver,P:Player+Sized>(self) -> (P,T);
+}
+
+pub trait TcpPlayerState:std::fmt::Debug+Send{}
+#[derive(Debug)]
+pub struct Whole{}
+#[derive(Debug)]
+pub struct WriteEnabled{}
+
+impl TcpPlayerState for Whole{}
+impl TcpPlayerState for WriteEnabled{}
 
 // A player can fully be reprsented by a tcp stream, we just need to add functionality for it
 #[derive(Debug)]
-pub struct TcpPlayer<const CAPACITY:usize> {
-    stream: Mutex<TcpStream>,
+pub struct TcpPlayer<const CAPACITY: usize,STATE:TcpPlayerState> {
+    writer: Mutex<OwnedWriteHalf>,
+    reader: Option<Mutex<OwnedReadHalf>>,
     id: usize,
-    sender: Sender<Message>,
+    sender: Option<Mutex<Sender<Message>>>,
+    state:std::marker::PhantomData<STATE>
 }
 
 #[async_trait]
-impl<const CAPACITY:usize> Player for TcpPlayer<CAPACITY> {
+impl<const CAPACITY: usize,STATE:TcpPlayerState> Player for TcpPlayer<CAPACITY,STATE> {
     async fn send(&mut self, event: Event) -> Result<(), PlayerError> {
         let data: Vec<u8> = (&event).into();
-        let writeable = self.stream.lock().unwrap();
-        match writeable.write_all(&data[..]) {
-            Ok(_) => Ok(()),
+        let writeable = self.writer.lock().unwrap();
+        match writeable.try_write(&data[..]) {
+            Ok(n) => {
+                println!("Wrote {:?} bytes", n);
+                Ok(())
+            }
             Err(_) => {
                 println!("Failed to send {:?} to {:?}", event, self);
                 Err(PlayerError::SendMessageError)
@@ -58,57 +81,96 @@ impl<const CAPACITY:usize> Player for TcpPlayer<CAPACITY> {
         }
     }
 
-    fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError> {
-        Ok(self.sender.subscribe())
-    }
 
-    async fn recive(&mut self) -> Result<(), PlayerError> {
-        loop {
-            let mut buffer = [0; 128];
-            let readable = self.stream.lock().unwrap();
-            match readable.read(&mut buffer) {
-                Err(_) => return Err(PlayerError::SendMessageError),
-                _ => {}
-            };
-            drop(readable);
-
-            match Vec::from(buffer).try_into() {
-                Ok(event) => {
-                    match event {
-                        Event::KeepAlive => {
-                            tokio::spawn(self.send(Event::KeepAliveResponse));
-                        }
-                        _ => {}
-                    };
-                    self.sender.send(Message::Recived {
-                        event: Ok(event),
-                        user: self.id,
-                    });
-                }
-                Err(_) => {
-                    self.sender.send(Message::Recived {
-                        event: Err(PlayerError::SendMessageError),
-                        user: self.id,
-                    });
-                }
-            };
-        }
-    }
     fn getid(&self) -> usize {
         return self.id.clone();
     }
 }
 
-impl<const CAPACITY:usize> TcpPlayer<CAPACITY> {
+impl<const CAPACITY: usize> TcpPlayer<CAPACITY,Whole> {
+   pub fn split(mut self) -> (TcpReciver<CAPACITY>,TcpPlayer<CAPACITY,WriteEnabled>){
+        
+        let Some(reader) = self.reader else {unreachable!()};
+        let id = self.id.clone();
+        let Some(sender) = self.sender else {unreachable!()};
+        (TcpReciver{
+            reader,id,sender
+        },TcpPlayer{
+            reader:None,
+            writer:self.writer,
+            sender:None,
+            id:self.id,
+            state:std::marker::PhantomData
+        })
+        
+    } 
+}
+#[derive(Debug)]
+pub struct TcpReciver<const CAPACITY:usize>{
+    reader: Mutex<OwnedReadHalf>,
+    id: usize,
+    sender: Mutex<Sender<Message>>,
 
+}
+
+#[async_trait]
+impl<const CAPACITY: usize> Reciver for TcpReciver<CAPACITY>{
+    fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError> {
+        let sender = self.sender.lock().unwrap();
+        Ok(sender.subscribe())
+    }
+
+    async fn recive(mut self) -> Result<(), PlayerError> {
+        loop {
+            let mut buffer = [0; 128];
+            let readable = self.reader.lock().unwrap();
+            match readable.try_read(&mut buffer) {
+                Err(_) => return Err(PlayerError::SendMessageError),
+                Ok(n) => {
+                    println!("Read {:?} bytes", n);
+                    if n == 0{
+                        self.sender.lock().unwrap().send(
+                            Message::Recived{
+                                event:Err(PlayerError::Disconnected),
+                                user:self.id.clone()
+                            }
+                        ).unwrap();
+                        return Ok(());
+                    }
+                }
+            };
+            drop(readable);
+
+            let msg = match Vec::from(buffer).try_into() {
+                Ok(event) => Ok(event),
+                Err(_) => Err(PlayerError::SendMessageError),
+            };
+
+            let sender = self.sender.lock().unwrap();
+            sender
+                .send(Message::Recived {
+                    event: msg,
+                    user: self.id.clone(),
+                })
+                .unwrap();
+            drop(sender);
+        }
+    }
+}
+
+
+impl<const CAPACITY: usize, STATE:TcpPlayerState> TcpPlayer<CAPACITY,STATE> {
     pub fn new(stream: TcpStream, id: usize) -> Self {
-        let (sender,_rx) = broadcast::channel(CAPACITY);
+        let (sender, _rx) = broadcast::channel(CAPACITY);
+        let (reader, writer) = stream.into_split();
+        let (reader, writer) = (Mutex::new(reader), Mutex::new(writer));
         let mut ret = Self {
-            stream: Mutex::new(stream),
+            reader:Some(reader),
+            writer,
             id,
-            sender,
+            sender: Some(Mutex::new(sender)),
+            state: std::marker::PhantomData
         };
-        tokio::spawn(ret.recive());
         ret
     }
 }

@@ -12,7 +12,7 @@ pub trait Card: Debug {
         Self: Sized;
 }
 
-#[derive(Debug,Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum AustraliaCards {
     TheBungleBungles,
     ThePinnacles,

@@ -3,7 +3,7 @@ use crate::engine::card::AustraliaCards;
 use super::card::Card;
 
 #[repr(u8)]
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Event {
     Deal(AustraliaCards),
     ListLobby,
