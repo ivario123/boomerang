@@ -14,6 +14,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     other_bytes = bytearray()
     other_bytes.append(1)
     other_bytes.append(2)
+    other_bytes.append(0)
+    for i in range(0,10):
+        s.send(other_bytes)
+        import time
+        time.sleep(1)
+    s.send(other_bytes)
     s.send(other_bytes)
     while 1:
 

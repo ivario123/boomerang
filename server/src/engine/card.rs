@@ -7,7 +7,7 @@ pub enum CardError {
 
 pub trait Card: Debug {
     fn as_u8<'a>(&'a self) -> &'a [u8];
-    fn from_u8(stream: &[u8]) -> Result<Self, CardError>
+    fn from_u8(stream: &[&u8]) -> Result<Self, CardError>
     where
         Self: Sized;
 }
@@ -26,9 +26,9 @@ impl Card for AustraliaCards {
             ThePinnacles => &[2],
         }
     }
-    fn from_u8(stream: &[u8]) -> Result<Self, CardError> {
+    fn from_u8(stream: &[&u8]) -> Result<Self, CardError> {
         use AustraliaCards::*;
-        match stream[0] {
+        match *stream[0] {
             1 => Ok(TheBungleBungles),
             2 => Ok(ThePinnacles),
             _ => Err(CardError::NoSuchCard),
