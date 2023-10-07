@@ -9,6 +9,7 @@ use std::{
     slice::Chunks,
 };
 
+use maps::Map;
 use ratatui::{
     backend::Backend,
     prelude::*,
@@ -37,7 +38,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, Instant};
 
-use crate::maps::boomerang_australia::BoomerangAustralia;
+use crate::maps::austrailia::Australia;
 // These type aliases are used to make the code more readable by reducing repetition of the generic
 // types. They are not necessary for the functionality of the code.
 type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
@@ -66,11 +67,14 @@ impl<M: maps::Map> DefaultTuiMap<M> {
     fn new() -> Self {
         Self {
             map: M::default(),
-            title: "Game".to_owned(),
+            title: "Map".to_owned(),
         }
     }
 }
-impl<M: maps::Map + ratatui::widgets::canvas::Shape> TuiPage for DefaultTuiMap<M> {
+impl<M: maps::Map + ratatui::widgets::canvas::Shape> TuiPage for DefaultTuiMap<M>
+where
+    M::REGION: 'static,
+{
     fn get_title(&mut self) -> &str {
         &self.title
     }
@@ -82,7 +86,13 @@ impl<M: maps::Map + ratatui::widgets::canvas::Shape> TuiPage for DefaultTuiMap<M
             .x_bounds([0.0, M::WIDTH as f64])
             .y_bounds([0.0, M::HEIGHT as f64])
             .paint(|context| {
-                self.map.render(context);
+                let mut sites = self.map.render(context);
+                let _ = sites.iter_mut().enumerate().for_each(|(idx, site)| {
+                    if idx%2==0{
+                        site.complete();
+                    }
+                    site.clone().render(context, (idx*10) as f64);
+                });
             })
             .marker(Marker::Dot);
 
@@ -182,7 +192,7 @@ impl<MainPage: TuiPage, MapPage: TuiPage> Tui<MainPage, MapPage> {
             .margin(1)
             .constraints(
                 [
-                    Constraint::Percentage(20),  // Paginate area
+                    Constraint::Percentage(5),   // Paginate area
                     Constraint::Percentage(100), // Page area
                 ]
                 .as_ref(),
@@ -303,7 +313,7 @@ impl ui::Hand<TuiCard> for TuiHand {
         &self.cards[start..min]
     }
 }
-type TuiDefaults = Tui<DefaultMainPage<TuiHand>, DefaultTuiMap<BoomerangAustralia>>;
+type TuiDefaults = Tui<DefaultMainPage<TuiHand>, DefaultTuiMap<Australia>>;
 #[tokio::main]
 async fn main() {
     let mainpage = DefaultMainPage::new();

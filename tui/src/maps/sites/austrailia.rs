@@ -9,6 +9,20 @@ pub enum Region {
     Tasmania,
 }
 
+impl super::Region for Region{
+    fn coordinates(&self) -> (f64, f64) {
+        match self{
+            Region::WesternAustralia => (82.0,220.0),
+            Region::NorthernTerritory => (180.0,300.0),
+            Region::Queensland => todo!(),
+            Region::SouthAustralia => todo!(),
+            Region::NewSouthWhales => todo!(),
+            Region::Victoria => todo!(),
+            Region::Tasmania => todo!(),
+        }
+    }
+}
+
 macro_rules! tourist_sites {
 	($(
 		$region:ident : {
@@ -18,7 +32,7 @@ macro_rules! tourist_sites {
 		}
 	)+) => {
 		impl Region{
-			fn sites() -> Vec<super::TouristSite<Region>>{
+			pub fn sites() -> Vec<super::TouristSite<Region>>{
 				[
 					$(
 						$(
@@ -76,8 +90,4 @@ tourist_sites!(
     }
 );
 
-impl super::Region for Region {
-    fn coordinates() -> (f64, f64) {
-        todo!()
-    }
-}
+

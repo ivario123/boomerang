@@ -4,10 +4,13 @@ use crossterm::style::Stylize;
 use ratatui::style::Color;
 use ratatui::widgets::canvas::Shape;
 
-pub mod boomerang_australia;
+use self::sites::{Region, TouristSite};
+
+pub mod austrailia;
 pub mod sites;
 
 pub trait Map: Shape {
+    type REGION: Region;
     const WIDTH: usize;
     const HEIGHT: usize;
 
@@ -23,5 +26,8 @@ pub trait Map: Shape {
     /// Returns the current color of the map
     fn get_color(&self) -> Color;
 
-    fn render(&self, ctx: &mut ratatui::widgets::canvas::Context<'_>);
+    fn render(
+        &self,
+        ctx: &mut ratatui::widgets::canvas::Context<'_>,
+    ) -> Vec<TouristSite<Self::REGION>>;
 }

@@ -1,31 +1,30 @@
 
-use super::{Map,Color};
+use std::{sync::Arc, cell::RefCell};
 
+use ratatui::style::Stylize;
 
-pub struct BoomerangAustralia {
-    color: Color
+use super::{Map,Color, sites::{austrailia::Region,TouristSite}};
+
+pub struct Australia {
+    color: Color,
+	sites: Vec<TouristSite<Region>>
 }
+impl Map for Australia {
 
-impl BoomerangAustralia {
-    fn default() -> Self{
-        Self{
-            color:Color::White
-        }
-    }
-}
-
-impl Map for BoomerangAustralia {
+    type REGION = Region;
     const WIDTH:usize = 458;
     const HEIGHT:usize = 418;
-    
+
     fn default() -> Self{
         Self{
-            color:Color::White
+            color:Color::White,
+			sites: Region::sites()	
         }
     }
 
-	fn render(& self, ctx: &mut ratatui::widgets::canvas::Context<'_>) {
+	fn render(&self, ctx:&mut ratatui::widgets::canvas::Context<'_>) -> Vec<TouristSite<Region>> {
 		ctx.draw(self);
+		self.sites[..6].to_vec()
 	}
 
     fn map(&self) -> Vec<(usize,usize)>{
@@ -4974,8 +4973,9 @@ impl Map for BoomerangAustralia {
         self.color.clone()
     }
 
+
 }
-impl super::Shape for BoomerangAustralia {
+impl super::Shape for Australia {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
         for (x, y) in self.map() {
             let y = Self::HEIGHT-y;
