@@ -4,6 +4,7 @@ pub mod hand;
 pub mod player;
 pub mod rules;
 pub mod session;
+pub mod drawable;
 use crate::engine::session::Lobby;
 
 use self::event::Event;
