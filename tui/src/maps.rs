@@ -1,13 +1,16 @@
-use std::borrow::BorrowMut;
-
-use crossterm::style::Stylize;
 use ratatui::style::Color;
 use ratatui::widgets::canvas::Shape;
 
 use self::sites::{Region, TouristSite};
 
-pub mod austrailia;
+pub mod australia;
 pub mod sites;
+
+/// Exports all objects relevant to the boomerang australia map.
+pub mod Australia {
+    pub use super::australia::Australia;
+    pub use super::sites::australia::Region;
+}
 
 pub trait Map: Shape {
     type REGION: Region;

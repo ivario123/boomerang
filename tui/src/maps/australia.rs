@@ -3,7 +3,7 @@ use std::{sync::Arc, cell::RefCell};
 
 use ratatui::style::Stylize;
 
-use super::{Map,Color, sites::{austrailia::Region,TouristSite}};
+use super::{Map,Color, sites::{australia::Region,TouristSite}};
 
 pub struct Australia {
     color: Color,

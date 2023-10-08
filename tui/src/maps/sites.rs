@@ -5,7 +5,7 @@ use ratatui::text::Span;
 use ratatui::widgets::canvas::Line;
 use std::fmt::Debug;
 
-pub mod austrailia;
+pub mod australia;
 pub trait Region: Clone + Copy + Debug + PartialEq {
     /// Returns coordinates to where the labels should start
     /// appearing
