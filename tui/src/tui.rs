@@ -10,7 +10,10 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
+    layout,
     prelude::{Backend, Constraint, CrosstermBackend, Direction, Layout, Rect},
+    style::{Style, Stylize},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 use tokio::sync::{mpsc, Mutex};
@@ -28,7 +31,7 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 pub mod controls;
 pub mod default;
 
-pub trait TuiPage {
+pub trait TuiPage: EventApi {
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect);
     fn set_title(&mut self, title: String);
     fn get_title(&mut self) -> &str;
@@ -61,8 +64,9 @@ impl<MainPage: TuiPage, MapPage: TuiPage> Tui<MainPage, MapPage> {
             .margin(1)
             .constraints(
                 [
-                    Constraint::Percentage(5),   // Paginate area
-                    Constraint::Percentage(100), // Page area
+                    Constraint::Percentage(5),  // Paginate area
+                    Constraint::Percentage(80), // Page area
+                    Constraint::Percentage(5),  // Controls area
                 ]
                 .as_ref(),
             )
@@ -70,6 +74,10 @@ impl<MainPage: TuiPage, MapPage: TuiPage> Tui<MainPage, MapPage> {
 
         // Draw the pages
         paginate.draw(frame, chunks[0], chunks[1]);
+
+        let controls = Block::default().title("Controls").borders(Borders::all());
+        Controls::render(frame, chunks[2]);
+        frame.render_widget(controls, chunks[2]);
     }
 
     /// Draws the UI in the terminal
@@ -83,7 +91,7 @@ impl<StartPage: TuiPage + Send + 'static, MapPage: TuiPage + Send + 'static>
     Tui<StartPage, MapPage>
 {
     pub fn init(mainpage: StartPage, mappage: MapPage) -> Mutex<Box<Self>> {
-        let ret = Self {
+        let ret: Tui<StartPage, MapPage> = Self {
             paginate: Paginate::new(mainpage, mappage),
             terminal: Self::setup_terminal().unwrap(),
         };
@@ -115,10 +123,7 @@ impl<StartPage: TuiPage + Send + 'static, MapPage: TuiPage + Send + 'static> ui:
                     kill_sender.send(()).await.unwrap();
                     return;
                 }
-                Ok(Controls::Tab) => {
-                    ui.lock().await.paginate.increment();
-                }
-                Ok(_) => {}
+                Ok(control) => ui.lock().await.paginate.handle_input(control),
                 Err(_) => {}
             }
 

@@ -5,9 +5,26 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::TuiPage;
+use crate::tui::{controls::EventApi, TuiPage};
 
 pub struct Paginate<MainPage: TuiPage, MapPage: TuiPage>(MainPage, MapPage, usize);
+
+impl<MainPage: TuiPage, MapPage: TuiPage> EventApi for Paginate<MainPage, MapPage> {
+    fn handle_input(&mut self, control: crate::tui::controls::Controls) {
+        match control {
+            crate::tui::controls::Controls::Tab => self.increment(),
+            crate::tui::controls::Controls::Exit => {},
+            _ => {
+                match self.2 {
+                    0 => self.0.handle_input(control),
+                    1 => self.1.handle_input(control),
+                    _ => unreachable!(),
+                };
+            }
+        }
+    }
+}
+
 impl<MainPage: TuiPage, MapPage: TuiPage> Paginate<MainPage, MapPage> {
     pub fn increment(&mut self) {
         self.2 = match self.2 {

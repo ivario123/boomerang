@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::{
     maps::{self, sites::Region, Map},
-    tui::TuiPage,
+    tui::{controls::EventApi, TuiPage},
 };
 
 pub struct DefaultTuiMap<M: maps::Map> {
@@ -23,6 +23,13 @@ impl<M: maps::Map> DefaultTuiMap<M> {
         }
     }
 }
+
+impl<M: maps::Map> EventApi for DefaultTuiMap<M> {
+    fn handle_input(&mut self, control: crate::tui::controls::Controls) {
+        // This should be able to assign scores and things I guess
+    }
+}
+
 impl<M: maps::Map + ratatui::widgets::canvas::Shape> TuiPage for DefaultTuiMap<M>
 where
     M::REGION: 'static,

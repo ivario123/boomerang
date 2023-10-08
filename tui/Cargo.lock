@@ -433,6 +433,8 @@ dependencies = [
  "async-trait",
  "crossterm",
  "ratatui",
+ "strum",
+ "strum_macros",
  "tokio",
 ]
 

@@ -5,10 +5,13 @@ pub trait UiElement {
     fn new() -> Self;
 }
 
-pub trait Card: UiElement {}
+pub trait Card: UiElement {
+    fn get_name(&self) -> &str;
+}
 
 pub trait Hand<C: Card>: UiElement {
-    fn get<const COUNT: usize>(&self, start: usize) -> &[C];
+    fn get<const COUNT: usize>(&self, start: usize) -> (&[C], (usize, usize));
+    fn count(&self) -> usize;
 }
 
 #[async_trait::async_trait]
