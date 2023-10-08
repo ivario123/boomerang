@@ -24,7 +24,7 @@ impl Map for Australia {
 
 	fn render(&self, ctx:&mut ratatui::widgets::canvas::Context<'_>) -> Vec<TouristSite<Region>> {
 		ctx.draw(self);
-		self.sites[..6].to_vec()
+		self.sites.to_vec()
 	}
 
     fn map(&self) -> Vec<(usize,usize)>{

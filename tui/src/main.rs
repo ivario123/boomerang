@@ -1,44 +1,28 @@
-use std::{
-    borrow::BorrowMut,
-    default,
-    error::Error,
-    io::{stdout, Stdout},
-    marker::PhantomData,
-    ops::ControlFlow,
-    pin::Pin,
-    slice::Chunks,
-};
+use std::{error::Error, sync::Arc, time::Duration};
 
-use maps::Map;
-use ratatui::{
-    backend::Backend,
-    prelude::*,
-    widgets::{
-        block::{Position, Title},
-        canvas::{Canvas, MapResolution},
-        Block, BorderType, Borders, Padding, Paragraph, Tabs, Widget, Wrap,
-    },
-};
-mod drawable;
+use crate::{tui::default::mappage::DefaultTuiMap, ui::Ui};
 use crossterm::{
-    event::{self},
-    event::{poll, Event, KeyCode},
+    event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use drawable::Drawable;
-use std::io;
-use std::sync::Arc;
+use maps::austrailia::Australia;
+use ratatui::{
+    prelude::{Backend, Constraint, CrosstermBackend, Direction, Layout},
+    Frame,
+};
+use std::io::{stdout, Stdout};
+use tokio::sync::{mpsc, Mutex};
+use tui::{
+    default::{card::TuiHand, mainpage::DefaultMainPage, paginate::Paginate},
+    TuiPage,
+};
+
+pub mod drawable;
 pub mod maps;
+pub mod tui;
 pub mod ui;
-use ratatui::widgets::canvas::Shape;
-use ui::{Card, Hand, Ui, UiElement};
 
-use tokio::sync::mpsc;
-use tokio::sync::Mutex;
-use tokio::time::{Duration, Instant};
-
-use crate::maps::austrailia::Australia;
 // These type aliases are used to make the code more readable by reducing repetition of the generic
 // types. They are not necessary for the functionality of the code.
 type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
@@ -54,116 +38,6 @@ enum Inputs {
     Tab,
     ShiftTab,
     Q,
-}
-
-type TuiCard = u8;
-
-struct DefaultTuiMap<M: maps::Map> {
-    map: M,
-    title: String,
-}
-
-impl<M: maps::Map> DefaultTuiMap<M> {
-    fn new() -> Self {
-        Self {
-            map: M::default(),
-            title: "Map".to_owned(),
-        }
-    }
-}
-impl<M: maps::Map + ratatui::widgets::canvas::Shape> TuiPage for DefaultTuiMap<M>
-where
-    M::REGION: 'static,
-{
-    fn get_title(&mut self) -> &str {
-        &self.title
-    }
-    fn set_title(&mut self, title: String) {
-        self.title = title
-    }
-    fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect) {
-        let canvas = Canvas::default()
-            .x_bounds([0.0, M::WIDTH as f64])
-            .y_bounds([0.0, M::HEIGHT as f64])
-            .paint(|context| {
-                let mut sites = self.map.render(context);
-                let _ = sites.iter_mut().enumerate().for_each(|(idx, site)| {
-                    if idx%2==0{
-                        site.complete();
-                    }
-                    site.clone().render(context, (idx*10) as f64);
-                });
-            })
-            .marker(Marker::Dot);
-
-        frame.render_widget(canvas, block);
-    }
-}
-
-struct Paginate<MainPage: TuiPage, MapPage: TuiPage>(MainPage, MapPage, usize);
-impl<MainPage: TuiPage, MapPage: TuiPage> Paginate<MainPage, MapPage> {
-    fn increment(&mut self) {
-        self.2 = match self.2 {
-            0 => 1,
-            1 => 0,
-            _ => unreachable!(),
-        }
-    }
-    fn decrement(&mut self) {
-        self.2 = match self.2 {
-            0 => 1,
-            1 => 0,
-            _ => unreachable!(),
-        }
-    }
-    fn new(mainpage: MainPage, mappage: MapPage) -> Self {
-        Self(mainpage, mappage, 0)
-    }
-    fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, pagination_area: Rect, block: Rect) {
-        // We need to draw either
-        let titles = [self.0.get_title(), self.1.get_title()].to_vec();
-        let tabs = Tabs::new(titles)
-            .block(Block::default().borders(Borders::ALL).title("Tabs"))
-            .select(self.2)
-            .style(Style::default().cyan())
-            .highlight_style(Style::default().bold().on_black());
-
-        frame.render_widget(tabs, pagination_area);
-
-        match self.2 {
-            0 => self.0.draw(frame, block),
-            1 => self.1.draw(frame, block),
-            _ => unreachable!(),
-        };
-    }
-}
-trait TuiPage {
-    fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect);
-    fn set_title(&mut self, title: String);
-    fn get_title(&mut self) -> &str;
-}
-
-struct DefaultMainPage<H: Hand<TuiCard>> {
-    hand: H,
-    title: String,
-}
-impl<H: Hand<TuiCard>> DefaultMainPage<H> {
-    fn new() -> Self {
-        Self {
-            hand: H::new(),
-            title: "Game".to_owned(),
-        }
-    }
-}
-
-impl<H: Hand<TuiCard>> TuiPage for DefaultMainPage<H> {
-    fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect) {}
-    fn set_title(&mut self, title: String) {
-        self.title = title
-    }
-    fn get_title(&mut self) -> &str {
-        &self.title
-    }
 }
 
 struct Tui<MainPage: TuiPage, MapPage: TuiPage> {
@@ -286,34 +160,8 @@ impl<StartPage: TuiPage + Send + 'static, MapPage: TuiPage + Send + 'static> ui:
     }
     // UI implementations
 }
-impl UiElement for TuiCard {
-    fn new() -> Self {
-        todo!()
-    }
-}
 
-impl Card for TuiCard {}
-
-struct TuiHand {
-    cards: Vec<TuiCard>,
-}
-
-impl UiElement for TuiHand {
-    fn new() -> Self {
-        Self { cards: Vec::new() }
-    }
-}
-
-impl ui::Hand<TuiCard> for TuiHand {
-    fn get<const COUNT: usize>(&self, start: usize) -> &[u8] {
-        let min = match (start + COUNT) > self.cards.len() {
-            true => start + COUNT,
-            false => self.cards.len(),
-        };
-        &self.cards[start..min]
-    }
-}
-type TuiDefaults = Tui<DefaultMainPage<TuiHand>, DefaultTuiMap<Australia>>;
+type TuiDefaults = Tui<DefaultMainPage<TuiHand>, tui::default::mappage::DefaultTuiMap<Australia>>;
 #[tokio::main]
 async fn main() {
     let mainpage = DefaultMainPage::new();
@@ -325,81 +173,4 @@ async fn main() {
     })
     .await;
     println!("Shutting down");
-}
-
-fn deck<B: Backend>(frame: &mut Frame<B>, rect: Rect) {
-    let chunks: Vec<Rect> = Layout::default()
-        .direction(Direction::Horizontal)
-        .margin(4)
-        .constraints([Constraint::Percentage(10); 10])
-        .split(rect)
-        .to_vec();
-    for (idx, chunk) in chunks.iter().enumerate() {
-        let block = Block::default()
-            .title(format!("card {:?},{:?}", idx, chunks.len()))
-            .borders(Borders::ALL);
-        frame.render_widget(block, *chunk);
-    }
-}
-
-struct Deck {}
-
-fn ui<B: Backend>(frame: &mut Frame<B>) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(1)
-        .constraints(
-            [
-                Constraint::Max(1),         // Title area
-                Constraint::Percentage(22), // Deck and map
-                Constraint::Percentage(20), // Queries and input
-            ]
-            .as_ref(),
-        )
-        .split(frame.size());
-    let block = Block::default().title("Boomerang").borders(Borders::NONE);
-    frame.render_widget(block, chunks[0]);
-    let block = Block::default().title("Deck").borders(Borders::ALL);
-    frame.render_widget(block, chunks[1]);
-    deck(frame, chunks[1]);
-    let block = Block::default().title("Input").borders(Borders::ALL);
-    frame.render_widget(block, chunks[2]);
-}
-
-fn render_objects<B: Backend>(
-    frame: &mut Frame<B>,
-    area: Rect,
-    objects: Vec<Box<dyn Drawable<B>>>,
-) {
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(vec![Constraint::Length(1), Constraint::Min(0)])
-        .split(area);
-    let main_areas: Vec<Vec<Rect>> = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(vec![Constraint::Max(4); 9])
-        .split(layout[1])
-        .iter()
-        .map(|&area| {
-            Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(area)
-                .to_vec()
-        })
-        .collect();
-    for (idx, object) in objects.iter().enumerate() {
-        object.as_ref().draw(frame, main_areas[0][idx])
-    }
-}
-
-struct Tmp {}
-
-impl<B: Backend> Drawable<B> for Tmp {
-    fn draw(&self, frame: &mut Frame<B>, area: Rect) {
-        let block = Block::new()
-            .borders(Borders::ALL)
-            .title(format!("Some card!"));
-        frame.render_widget(block, area);
-    }
 }

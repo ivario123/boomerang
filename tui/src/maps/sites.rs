@@ -6,10 +6,13 @@ use ratatui::widgets::canvas::Line;
 use std::fmt::Debug;
 
 pub mod austrailia;
-pub trait Region: Clone + Copy + Debug {
+pub trait Region: Clone + Copy + Debug + PartialEq {
     /// Returns coordinates to where the labels should start
     /// appearing
     fn coordinates(&self) -> (f64, f64);
+
+    /// Returns the first area in the region
+    fn default() -> Self;
 }
 
 #[derive(Clone, Debug)]
@@ -28,6 +31,9 @@ impl<'a, R: Region> TouristSite<R> {
 
     pub fn complete(&mut self) {
         self.completed = true;
+    }
+    pub fn region(&self) -> R {
+        self.region.clone()
     }
     pub fn render(self, ctx: &mut ratatui::widgets::canvas::Context<'a>, offset: f64) {
         let (x, y) = self.region.coordinates();

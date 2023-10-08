@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Region {
     WesternAustralia,
     NorthernTerritory,
@@ -9,16 +9,19 @@ pub enum Region {
     Tasmania,
 }
 
-impl super::Region for Region{
+impl super::Region for Region {
+    fn default() -> Self {
+        Region::WesternAustralia
+    }
     fn coordinates(&self) -> (f64, f64) {
-        match self{
-            Region::WesternAustralia => (82.0,220.0),
-            Region::NorthernTerritory => (180.0,300.0),
-            Region::Queensland => todo!(),
-            Region::SouthAustralia => todo!(),
-            Region::NewSouthWhales => todo!(),
-            Region::Victoria => todo!(),
-            Region::Tasmania => todo!(),
+        match self {
+            Region::WesternAustralia => (82.0, 220.0),
+            Region::NorthernTerritory => (220.0, 300.0),
+            Region::Queensland => (340.0, 280.0),
+            Region::SouthAustralia => (230.0, 180.0),
+            Region::NewSouthWhales => (360.0, 150.0),
+            Region::Victoria => (340.0, 87.5),
+            Region::Tasmania => (355.0,50.0),
         }
     }
 }
@@ -89,5 +92,3 @@ tourist_sites!(
         ("Richmond","-")
     }
 );
-
-
