@@ -11,12 +11,12 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
+    backend::Backend,
     prelude::*,
     widgets::{
         block::{Position, Title},
         Block, BorderType, Borders, Padding, Paragraph, Wrap,
     },
-    backend::Backend
 };
 
 // These type aliases are used to make the code more readable by reducing repetition of the generic
@@ -70,7 +70,7 @@ fn handle_events() -> Result<ControlFlow<()>> {
     Ok(ControlFlow::Continue(()))
 }
 
-fn ui<B:Backend>(frame: &mut Frame<B>) {
+fn ui<B: Backend>(frame: &mut Frame<B>) {
     let (title_area, layout) = calculate_layout(frame.size());
 
     render_title(frame, title_area);
@@ -124,7 +124,7 @@ fn calculate_layout(area: Rect) -> (Rect, Vec<Vec<Rect>>) {
     (title_area, main_areas)
 }
 
-fn render_title<B:Backend>(frame: &mut Frame<B>, area: Rect) {
+fn render_title<B: Backend>(frame: &mut Frame<B>, area: Rect) {
     frame.render_widget(
         Paragraph::new("Block example. Press q to quit")
             .dark_gray()
@@ -138,14 +138,19 @@ fn placeholder_paragraph() -> Paragraph<'static> {
     Paragraph::new(text.dark_gray()).wrap(Wrap { trim: true })
 }
 
-fn render_borders<B:Backend>(paragraph: &Paragraph, border: Borders, frame: &mut Frame<B>, area: Rect) {
+fn render_borders<B: Backend>(
+    paragraph: &Paragraph,
+    border: Borders,
+    frame: &mut Frame<B>,
+    area: Rect,
+) {
     let block = Block::new()
         .borders(border)
         .title(format!("Borders::{border:#?}", border = border));
     frame.render_widget(paragraph.clone().block(block), area);
 }
 
-fn render_border_type<B:Backend>(
+fn render_border_type<B: Backend>(
     paragraph: &Paragraph,
     border_type: BorderType,
     frame: &mut Frame<B>,
@@ -157,7 +162,7 @@ fn render_border_type<B:Backend>(
         .title(format!("BorderType::{border_type:#?}"));
     frame.render_widget(paragraph.clone().block(block), area);
 }
-fn render_styled_borders<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_styled_borders<B: Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
     let block = Block::new()
         .borders(Borders::ALL)
         .border_style(Style::new().blue().on_white().bold().italic())
@@ -165,7 +170,7 @@ fn render_styled_borders<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>,
     frame.render_widget(paragraph.clone().block(block), area);
 }
 
-fn render_styled_block<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_styled_block<B: Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
     let block = Block::new()
         .borders(Borders::ALL)
         .style(Style::new().blue().on_white().bold().italic())
@@ -174,7 +179,7 @@ fn render_styled_block<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, a
 }
 
 // Note: this currently renders incorrectly, see https://github.com/ratatui-org/ratatui/issues/349
-fn render_styled_title<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_styled_title<B: Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
     let block = Block::new()
         .borders(Borders::ALL)
         .title("Styled title")
@@ -182,7 +187,11 @@ fn render_styled_title<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, a
     frame.render_widget(paragraph.clone().block(block), area);
 }
 
-fn render_styled_title_content<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_styled_title_content<B: Backend>(
+    paragraph: &Paragraph,
+    frame: &mut Frame<B>,
+    area: Rect,
+) {
     let title = Line::from(vec![
         "Styled ".blue().on_white().bold().italic(),
         "title content".red().on_white().bold().italic(),
@@ -191,7 +200,7 @@ fn render_styled_title_content<B:Backend>(paragraph: &Paragraph, frame: &mut Fra
     frame.render_widget(paragraph.clone().block(block), area);
 }
 
-fn render_multiple_titles<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_multiple_titles<B: Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
     let block = Block::new()
         .borders(Borders::ALL)
         .title("Multiple".blue().on_white().bold().italic())
@@ -199,7 +208,11 @@ fn render_multiple_titles<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>
     frame.render_widget(paragraph.clone().block(block), area);
 }
 
-fn render_multiple_title_positions<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_multiple_title_positions<B: Backend>(
+    paragraph: &Paragraph,
+    frame: &mut Frame<B>,
+    area: Rect,
+) {
     let block = Block::new()
         .borders(Borders::ALL)
         .title(
@@ -235,7 +248,7 @@ fn render_multiple_title_positions<B:Backend>(paragraph: &Paragraph, frame: &mut
     frame.render_widget(paragraph.clone().block(block), area);
 }
 
-fn render_padding<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_padding<B: Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
     let block = Block::new()
         .borders(Borders::ALL)
         .title("Padding")
@@ -243,7 +256,7 @@ fn render_padding<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: 
     frame.render_widget(paragraph.clone().block(block), area);
 }
 
-fn render_nested_blocks<B:Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
+fn render_nested_blocks<B: Backend>(paragraph: &Paragraph, frame: &mut Frame<B>, area: Rect) {
     let outer_block = Block::new().borders(Borders::ALL).title("Outer block");
     let inner_block = Block::new().borders(Borders::ALL).title("Inner block");
     let inner = outer_block.inner(area);

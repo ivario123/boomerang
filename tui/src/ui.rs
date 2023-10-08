@@ -1,8 +1,3 @@
-use ratatui::{
-    prelude::{Backend, Constraint, Direction, Layout, Rect},
-    widgets::{Block, Borders},
-    Frame,
-};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

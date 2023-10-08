@@ -21,7 +21,7 @@ impl super::Region for Region {
             Region::SouthAustralia => (230.0, 180.0),
             Region::NewSouthWhales => (360.0, 150.0),
             Region::Victoria => (340.0, 87.5),
-            Region::Tasmania => (355.0,50.0),
+            Region::Tasmania => (355.0, 50.0),
         }
     }
 }

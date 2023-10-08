@@ -3,15 +3,14 @@ use tokio::sync::Mutex;
 use tui::default::*;
 use tui::Tui;
 
-use crate::maps::Australia::*;
+use crate::maps::boomerang_australia::*;
 use crate::ui::Ui;
 
-pub mod drawable;
 pub mod maps;
 pub mod tui;
 pub mod ui;
 
-type TuiDefaults = Tui<DefaultMainPage<TuiHand>, tui::default::mappage::DefaultTuiMap<Australia>>;
+type TuiDefaults = Tui<DefaultMainPage<TuiHand>, tui::default::mappage::DefaultTuiMap<Map>>;
 #[tokio::main]
 async fn main() {
     let mainpage = DefaultMainPage::new();

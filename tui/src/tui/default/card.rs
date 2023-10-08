@@ -1,11 +1,4 @@
-use ratatui::{prelude::Backend, Frame};
-
-use crate::{
-    tui::TuiPage,
-    ui::{self, Card, Hand, UiElement},
-};
-
-use super::mainpage::DefaultMainPage;
+use crate::ui::{Card, Hand, UiElement};
 
 pub type TuiCard = u8;
 
@@ -21,14 +14,13 @@ impl UiElement for TuiCard {
 
 impl Card for TuiCard {}
 
-
 impl UiElement for TuiHand {
     fn new() -> Self {
         Self { cards: Vec::new() }
     }
 }
 
-impl ui::Hand<TuiCard> for TuiHand {
+impl Hand<TuiCard> for TuiHand {
     fn get<const COUNT: usize>(&self, start: usize) -> &[u8] {
         let min = match (start + COUNT) > self.cards.len() {
             true => start + COUNT,

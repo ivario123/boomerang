@@ -3,12 +3,12 @@ use ratatui::widgets::canvas::Shape;
 
 use self::sites::{Region, TouristSite};
 
-pub mod australia;
+mod australia;
 pub mod sites;
 
 /// Exports all objects relevant to the boomerang australia map.
-pub mod Australia {
-    pub use super::australia::Australia;
+pub mod boomerang_australia {
+    pub use super::australia::Map;
     pub use super::sites::australia::Region;
 }
 

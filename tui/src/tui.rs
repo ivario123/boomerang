@@ -41,7 +41,6 @@ enum Controls {
     Down,
     Enter,
     Tab,
-    ShiftTab,
     Q,
 }
 
@@ -154,7 +153,7 @@ impl<StartPage: TuiPage + Send + 'static, MapPage: TuiPage + Send + 'static> ui:
                 Ok(Controls::Tab) => {
                     ui.lock().await.paginate.increment();
                 }
-                Ok(msg) => {}
+                Ok(_) => {}
                 Err(_) => {}
             }
 

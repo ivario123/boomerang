@@ -1,7 +1,4 @@
-use std::cell::RefCell;
-
-use ratatui::style::{Color, Stylize};
-use ratatui::text::Span;
+use ratatui::style::Color;
 use ratatui::widgets::canvas::Line;
 use std::fmt::Debug;
 
@@ -24,7 +21,6 @@ pub struct TouristSite<R: Region> {
 }
 
 impl<'a, R: Region> TouristSite<R> {
-    const CROSS_LENGTH: f64 = 5.0;
     pub fn get_id(&self) -> String {
         self.id.clone()
     }
@@ -58,8 +54,7 @@ impl<'a, R: Region> TouristSite<R> {
                 y2: y,
                 color: Color::Yellow,
             });
-        }
-        else{
+        } else {
             ctx.draw(&Line {
                 x1: x + offset,
                 y1: y,
@@ -67,7 +62,6 @@ impl<'a, R: Region> TouristSite<R> {
                 y2: y,
                 color: Color::DarkGray,
             });
-
         }
     }
     pub fn clone(&self) -> Self {
