@@ -3,6 +3,9 @@ pub use tcp::*;
 
 use crate::engine::event::Event;
 use async_trait::async_trait;
+use std::any::TypeId;
+use std::cell::RefCell;
+use std::cmp::PartialOrd;
 use tokio;
 use tokio::sync::broadcast::Receiver;
 
@@ -31,12 +34,23 @@ pub trait Reciver: std::fmt::Debug {
     fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError>;
     async fn recive(mut self) -> Result<(), PlayerError>;
 }
+pub trait ReasignUid {
+    fn re_asign_uid(self) -> Self;
+}
 
 #[async_trait]
-pub trait Player: std::fmt::Debug + Send {
+pub trait Player: std::fmt::Debug + Send  {
     fn getid(&self) -> usize;
     async fn send(&mut self, event: Event) -> Result<(), PlayerError>;
 }
+
+pub trait EqPlayer {
+    fn eq(&self, other: impl EqPlayer) -> bool{
+        self.identifier() == other.identifier()
+    }
+    fn identifier(&self) -> String;
+}
+
 pub trait Splittable<R: Reciver> {
     type WritePart: Player;
     fn split(self) -> (Self::WritePart, R);

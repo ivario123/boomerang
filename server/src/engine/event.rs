@@ -12,6 +12,7 @@ pub enum Event {
     JoinLobby(u8),
     KeepAlive,
     KeepAliveResponse,
+    Connected(u8),
 }
 
 /// Enumerates all of the possible errors for the [`Event`] enum
@@ -39,6 +40,9 @@ impl<'a> Into<Vec<u8>> for &'a Event {
             JoinLobby(id) => Vec::from([4, *id]),
             KeepAlive => vec![5],
             KeepAliveResponse => vec![6],
+            Connected(uid) => {
+                vec![7,*uid]
+            },
         };
         ret.push(0);
         return ret;
@@ -82,7 +86,6 @@ impl Into<EventList> for Vec<u8> {
             match self.get(idx + 1) {
                 Some(next) => {
                     if *el != 0 && *next == 0 {
-                        println!("idx {:?}, prev_idx {:?}", idx, prev_idx);
                         indecies.push((prev_idx, idx + 1));
                         prev_idx = idx + 2;
                     }
@@ -93,7 +96,6 @@ impl Into<EventList> for Vec<u8> {
         let mut events = Vec::new();
         for (start, stop) in indecies {
             let msg: Vec<&u8> = self[start..stop].iter().collect();
-            println!("Interpreting {:?}", msg);
             events.push(msg.try_into());
             // First element identifies type of event
         }

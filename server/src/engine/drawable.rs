@@ -1,5 +1,3 @@
-
-
-pub trait Drawable{
-    fn draw(&self); 
+pub trait Drawable {
+    fn draw(&self);
 }

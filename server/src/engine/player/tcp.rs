@@ -1,8 +1,11 @@
-use super::{Message, New, Player, PlayerError, Reciver};
+use super::{EqPlayer, Message, New, Player, PlayerError, ReasignUid, Reciver};
 use crate::engine::event::{Event, EventList};
 use async_trait::async_trait;
 use std::{
+    any::{Any, TypeId},
     cell::RefCell,
+    fmt::{write, Write},
+    ops::Deref,
     sync::{Arc, Mutex},
 };
 use tokio::net::{
@@ -23,7 +26,7 @@ impl TcpPlayerState for WriteEnabled {}
 // A player can fully be reprsented by a tcp stream, we just need to add functionality for it
 #[derive(Debug)]
 pub struct TcpPlayer<const CAPACITY: usize, STATE: TcpPlayerState> {
-    writer: Mutex<OwnedWriteHalf>,
+    pub writer: Mutex<OwnedWriteHalf>,
     reader: Option<Mutex<OwnedReadHalf>>,
     id: usize,
     sender: Option<Mutex<Sender<Message>>>,
@@ -46,9 +49,21 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState> Player for TcpPlayer<CAPACITY
             }
         }
     }
-
     fn getid(&self) -> usize {
         return self.id.clone();
+    }
+}
+impl EqPlayer for std::net::TcpStream {
+    fn identifier(&self) -> String {
+        format!("TcpPlayer, Peer : {:?}", self.peer_addr())
+    }
+}
+impl<const CAPACITY: usize, State: TcpPlayerState> EqPlayer for TcpPlayer<CAPACITY, State> {
+    fn identifier(&self) -> String {
+        format!(
+            "TcpPlayer, Peer : {:?}",
+            self.writer.lock().unwrap().peer_addr()
+        )
     }
 }
 
@@ -86,7 +101,7 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState> TcpPlayer<CAPACITY, STATE> {
         let (sender, _rx) = broadcast::channel(CAPACITY);
         let (reader, writer) = stream.into_split();
         let (reader, writer) = (Mutex::new(reader), Mutex::new(writer));
-        let mut ret = Self {
+        let ret = Self {
             reader: Some(reader),
             writer,
             id,
