@@ -14,7 +14,8 @@ use self::session::PlayerFromTcpStream;
 use self::session::SessionError;
 use player::TcpPlayer;
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use tokio::sync::Mutex;
 use std::{net::TcpListener, net::TcpStream};
 
 use tokio::sync::broadcast;
@@ -67,35 +68,30 @@ async fn monitor<T: session::LobbyInterface>(
     mut rx: broadcast::Receiver<player::Message>,
     tx: mpsc::Sender<(usize, Event)>,
 ) {
-    println!("In monitor for {:?}", rx);
+    //println!("In monitor for {:?}", rx.resubscribe());
     loop {
-        match rx.recv().await {
-            Ok(message) => match message {
-                player::Message::Recived { event, user: _ } => match event {
-                    Err(_) => {
-                        break;
-                    }
-                    Ok(msg) => {
-                        let tx_clone = tx.clone();
-                        tokio::spawn(async move {
-                            tx_clone
-                                .send((uid, msg))
-                                .await
-                                .map_err(|e| {
-                                    eprintln!("{:?}", e);
-                                })
-                                .unwrap();
-                        });
-                    }
-                },
-            },
-            _ => {
-                break;
+        match rx.try_recv() {
+            Ok(message) => {
+                println!("{:?}", message);
+                match message {
+                    player::Message::Received { event, user: _ } => match event {
+                        Err(e) => {
+                            println!("Exiting the monitor for some reason {:?}", e);
+                            break;
+                        }
+                        Ok(msg) => {
+                            println!("monitor got {:?}", msg);
+                            tx.send((uid, msg)).await.unwrap();
+                            println!("sent");
+                        }
+                    },
+                }
             }
+            e => {}
         };
     }
     println!("Closed");
-    let _ = manager.lock().unwrap().borrow_mut().disconnect(uid);
+    let _ = manager.lock().await.borrow_mut().disconnect(uid);
 }
 
 fn add_player<
@@ -106,8 +102,10 @@ fn add_player<
     manager: Arc<Mutex<RefCell<T>>>,
     event_tx: mpsc::Sender<(usize, Event)>,
 ) {
+    println!("hey, new player {:?}", player);
     match player {
         Ok((uid, channel)) => {
+            println!("Spawning monitor for {:?} and {:?}", uid, channel);
             tokio::spawn(async move {
                 monitor(manager, uid, channel, event_tx).await;
             });
@@ -133,14 +131,7 @@ async fn tcp_manager<
         match message {
             Cmd::Add { user } => {
                 let cloned_manager = manager.clone();
-                let locked_manager = match cloned_manager.lock() {
-                    Ok(manager) => manager,
-                    // Mutex locks only return error if they are poisoned,
-                    // That means that the we should exit the main loop
-                    Err(_) => {
-                        return;
-                    }
-                };
+                let locked_manager = cloned_manager.lock().await;
                 let mut borrowed_manager = match locked_manager.try_borrow_mut() {
                     Ok(manager) => manager,
                     Err(_) => {

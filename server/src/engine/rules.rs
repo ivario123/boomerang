@@ -68,7 +68,7 @@ impl<Status: ActionStatus> Action<Status> {
         self.player
     }
     pub fn action(&self) -> Event {
-        self.action
+        self.action.clone()
     }
     pub fn new(player: usize, action: Event) -> Action<New> {
         Action {

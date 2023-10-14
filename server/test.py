@@ -2,6 +2,7 @@
 # echo-server.py
 
 import socket
+import time
 
 HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
 PORT = 2047  # Port to listen on (non-privileged ports are > 1023)
@@ -15,12 +16,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     other_bytes.append(1)
     other_bytes.append(2)
     other_bytes.append(0)
+    s.send(b'asd')
     for i in range(0,10):
-        s.send(other_bytes)
-        if i != 0:
-            response = s.recvmsg(1024)
-            print(f"{response}")
-        import time
+        s.send(b'["UnexpectedMessage"]')
         time.sleep(1)
     s.send(other_bytes)
     s.send(other_bytes)

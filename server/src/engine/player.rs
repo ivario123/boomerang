@@ -3,12 +3,12 @@ pub use tcp::*;
 
 use crate::engine::event::Event;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::any::TypeId;
 use std::cell::RefCell;
 use std::cmp::PartialOrd;
 use tokio;
 use tokio::sync::broadcast::Receiver;
-
 #[derive(Debug, Clone, Copy)]
 pub enum PlayerError {
     /// Thrown when no response was delivered within the acceptable time
@@ -21,9 +21,9 @@ pub enum PlayerError {
     Disconnected,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
-    Recived {
+    Received {
         event: Result<Event, PlayerError>,
         user: usize,
     },
@@ -81,15 +81,4 @@ pub trait Splittable<R: Reciver> {
 
 pub trait New<O: Player> {
     fn new(self, uid: usize) -> O;
-}
-
-#[cfg(test)]
-mod test {
-    use std::net::TcpListener;
-    #[test]
-    fn send_tcp() {
-        // 1. start
-
-        unimplemented!();
-    }
 }

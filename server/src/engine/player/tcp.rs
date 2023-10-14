@@ -1,14 +1,13 @@
 use super::{EqPlayer, Id, Message, New, Player, PlayerError, Reciver};
-use crate::engine::event::{Event, EventList};
-use async_std::task;
+use crate::engine::event::Event;
 use async_trait::async_trait;
-use std::sync::{Arc, Mutex};
+use std::marker::PhantomData;
 use tokio::net::{
     tcp::{OwnedReadHalf, OwnedWriteHalf},
     TcpStream,
 };
 use tokio::sync::broadcast::{self, Receiver, Sender};
-
+use tokio::sync::Mutex;
 pub trait TcpPlayerState: std::fmt::Debug + Send {}
 #[derive(Debug)]
 pub struct Whole {}
@@ -21,19 +20,32 @@ impl TcpPlayerState for WriteEnabled {}
 // A player can fully be reprsented by a tcp stream, we just need to add functionality for it
 #[derive(Debug)]
 pub struct TcpPlayer<const CAPACITY: usize, STATE: TcpPlayerState> {
-    pub writer: Mutex<OwnedWriteHalf>,
-    reader: Option<Mutex<OwnedReadHalf>>,
+    pub mutex: Mutex<PhantomData<STATE>>,
+    pub writer: OwnedWriteHalf,
+    reader: Option<OwnedReadHalf>,
     id: usize,
-    sender: Option<Mutex<Sender<Message>>>,
+    sender: Option<Sender<Message>>,
     state: std::marker::PhantomData<STATE>,
+}
+
+#[derive(Debug)]
+pub struct TcpReciver<const CAPACITY: usize> {
+    reader: OwnedReadHalf,
+    id: usize,
+    sender: Sender<Message>,
+    mutex: Mutex<PhantomData<bool>>,
 }
 
 #[async_trait]
 impl<const CAPACITY: usize, STATE: TcpPlayerState> Player for TcpPlayer<CAPACITY, STATE> {
     async fn send(&mut self, event: Event) -> Result<(), PlayerError> {
-        let data: Vec<u8> = (&event).into();
-        let writeable = self.writer.lock().unwrap();
-        match writeable.try_write(&data[..]) {
+        let _ = self.mutex.lock().await;
+        println!("{:?} sending {:?}", self, event);
+        let json = match serde_json::to_string(&event) {
+            Ok(val) => val,
+            Err(_) => return Err(PlayerError::SendMessageError),
+        };
+        match self.writer.try_write(json.as_bytes()) {
             Ok(n) => {
                 println!("Wrote {:?} bytes", n);
                 Ok(())
@@ -48,10 +60,7 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState> Player for TcpPlayer<CAPACITY
         return self.id.clone();
     }
     fn identifier(&self) -> String {
-        format!(
-            "TcpPlayer, Peer : {:?}",
-            self.writer.lock().unwrap().peer_addr()
-        )
+        format!("TcpPlayer, Peer : {:?}", self.writer.peer_addr())
     }
 }
 impl Id for std::net::TcpStream {
@@ -79,6 +88,7 @@ impl<const CAPACITY: usize, const BUFFERSIZE: usize> super::Splittable<TcpRecive
         };
         (
             TcpPlayer {
+                mutex: Mutex::new(PhantomData),
                 reader: None,
                 writer: self.writer,
                 sender: None,
@@ -88,7 +98,8 @@ impl<const CAPACITY: usize, const BUFFERSIZE: usize> super::Splittable<TcpRecive
             TcpReciver {
                 reader,
                 id,
-                sender: Arc::new(Box::new(sender)),
+                sender: sender,
+                mutex: Mutex::new(PhantomData),
             },
         )
     }
@@ -98,12 +109,13 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState> TcpPlayer<CAPACITY, STATE> {
     pub fn new(stream: TcpStream, id: usize) -> Self {
         let (sender, _rx) = broadcast::channel(CAPACITY);
         let (reader, writer) = stream.into_split();
-        let (reader, writer) = (Mutex::new(reader), Mutex::new(writer));
+        let (reader, writer) = (reader, writer);
         let ret = Self {
+            mutex: Mutex::new(PhantomData),
             reader: Some(reader),
             writer,
             id,
-            sender: Some(Mutex::new(sender)),
+            sender: Some(sender),
             state: std::marker::PhantomData,
         };
         ret
@@ -117,72 +129,59 @@ impl<const CAPACITY: usize> New<TcpPlayer<CAPACITY, Whole>> for std::net::TcpStr
     }
 }
 
-#[derive(Debug)]
-pub struct TcpReciver<const CAPACITY: usize> {
-    reader: Mutex<OwnedReadHalf>,
-    id: usize,
-    sender: Arc<Box<Mutex<Sender<Message>>>>,
-}
 #[async_trait]
 impl<const CAPACITY: usize> Reciver for TcpReciver<CAPACITY> {
     fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError> {
-        let sender = self.sender.lock().unwrap();
+        let sender = &self.sender;
         Ok(sender.subscribe())
     }
 
     async fn receive(mut self) -> Result<(), PlayerError> {
         loop {
-            let mut buffer = [0; 128];
-            let readable = self.reader.lock().unwrap();
-            match readable.try_read(&mut buffer) {
-                Err(_) => return Err(PlayerError::SendMessageError),
-                Ok(n) => {
-                    if n == 0 {
-                        self.sender
-                            .lock()
-                            .unwrap()
-                            .send(Message::Recived {
-                                event: Err(PlayerError::Disconnected),
-                                user: self.id.clone(),
-                            })
-                            .unwrap();
-                        return Ok(());
+            let mut buffer = vec![0; 128];
+            {
+                let _ = self.mutex.lock().await;
+                match self.reader.try_read(&mut buffer) {
+                    Err(_) => {}
+                    Ok(n) => {
+                        if n == 0 {
+                            self.sender
+                                .send(Message::Received {
+                                    event: Err(PlayerError::Disconnected),
+                                    user: self.id.clone(),
+                                })
+                                .unwrap();
+                            return Ok(());
+                        }
                     }
+                };
+            }
+            let events: Vec<Event> = {
+                let _ = self.mutex.lock().await;
+                while let Some(&0) = buffer.last() {
+                    buffer.pop();
+                }
+                match serde_json::from_slice::<Vec<Event>>(&buffer) {
+                    Ok(vec) => vec,
+                    // If it is not a vec of events, see if it is a single event
+                    Err(_) => match serde_json::from_slice::<Event>(&buffer) {
+                        Ok(event) => vec![event],
+                        Err(_) => {
+                            continue;
+                        }
+                    },
                 }
             };
-            drop(readable);
-            let EventList(events) = Vec::from(buffer).into();
+
             for event in events.iter() {
-                let msg = match event {
-                    Ok(event) => Ok(event.clone()),
-                    Err(_) => Err(PlayerError::SendMessageError),
+                let _ = self.mutex.lock().await;
+                // Re package in to a nice little message
+                let msg: Message = Message::Received {
+                    event: Ok(event.clone()),
+                    user: self.id.clone(),
                 };
-                let sender_clone: Arc<Box<Mutex<Sender<Message>>>> = self.sender.clone();
-
-                tokio::spawn({
-                    async move {
-                        let msg = Message::Recived {
-                            event: msg,
-                            user: self.id.clone(),
-                        };
-                        let send = |sender: Arc<Box<Mutex<Sender<Message>>>>| {
-                            let sender_locked = match sender.lock() {
-                                Ok(valid_sender) => valid_sender,
-                                // There is no way to recover from this.
-                                Err(_) => return,
-                            };
-
-                            match sender_locked.send(msg) {
-                                Ok(_) => {}
-                                Err(_) => {
-                                    // Here we need to recurse with some counter to terminate the
-                                    // loop if some threshold is exceeded.
-                                }
-                            };
-                        };
-                        send(sender_clone.clone());
-                    }
-                });
+                self.sender.send(msg).unwrap();
+                println!("Sent to manager");
             }
         }
     }

@@ -8,10 +8,11 @@ use super::rules::{self, Action, RuleEngine};
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 #[derive(Debug)]
@@ -61,7 +62,7 @@ pub struct Lobby<R: RuleEngine, const CAPACITY: usize> {
     players: Vec<Box<RefCell<dyn Player>>>,
     disconnected: Vec<(usize, Box<RefCell<dyn Player>>)>,
     rules: R,
-    message_queue: Arc<Box<Mutex<Vec<rules::Action<rules::New>>>>>,
+    message_queue: Arc<Mutex<Vec<Action<rules::New>>>>,
     event_queue: Vec<rules::Action<rules::Sent>>,
     user_counter: usize,
 }
@@ -110,6 +111,7 @@ impl<R: RuleEngine, const CAPACITY: usize> LobbyInterface for Lobby<R, CAPACITY>
         }
     }
 }
+
 impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize, const BUFFERSIZE: usize>
     PlayerFromTcpStream<BUFFERSIZE, CAPACITY> for Lobby<R, CAPACITY>
 {
@@ -159,26 +161,24 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize, const BUFFERSIZ
 }
 
 impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACITY> {
-    pub fn new<ID: Sized>(_: ID, mut channel: MessageBuss) -> Self {
-        let msg_queue = Arc::new(Box::new(Mutex::new(Vec::with_capacity(CAPACITY))));
+    async fn monitor(channel: &mut MessageBuss, mut queue: Arc<Mutex<Vec<Action<rules::New>>>>) {
+        let (player, event) = match channel.try_recv() {
+            Ok(value) => value,
+            Err(_) => return,
+        };
 
-        let queue = RefCell::new(Arc::new(msg_queue.clone()));
+        let queue = queue.borrow_mut();
+        let mut queue_locked = queue.lock().await;
+        queue_locked.push(Action::<rules::New>::new(player, event));
+    }
+    pub fn new<ID: Sized>(_: ID, mut channel: MessageBuss) -> Self {
+        let msg_queue: Arc<Mutex<Vec<Action<rules::New>>>> =
+            Arc::new(Mutex::new(Vec::with_capacity(CAPACITY)));
+        let queue: Arc<Mutex<Vec<Action<rules::New>>>> = msg_queue.clone();
         // Monitor for events
         tokio::spawn(async move {
             loop {
-                let rec: Option<(usize, Event)> = channel.recv().await;
-                match rec {
-                    Some((player, event)) => {
-                        queue
-                            .borrow_mut()
-                            .lock()
-                            .unwrap()
-                            .push(Action::<rules::New>::new(player, event));
-                    }
-                    _ => {
-                        eprintln!("Nothing to see here");
-                    }
-                };
+                Self::monitor(&mut channel, queue.clone()).await
             }
         });
 
@@ -196,7 +196,7 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
     ///
     /// Returns a [`Vec`] of events and the corresponding [`Player`] [`Id`](Player::getid).
     fn flush_messages(&mut self) -> Vec<Action<rules::New>> {
-        let mut msg = self.message_queue.lock().unwrap();
+        let mut msg = async_std::task::block_on(async { self.message_queue.lock().await });
         let mut ret = Vec::new();
         while let Some(message) = msg.pop() {
             println!("flushing {:?}", message);
@@ -205,22 +205,13 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
         ret
     }
 
-    async fn send_message(
-        lobby_ref: &Arc<Mutex<RefCell<Self>>>,
+    fn send_message(
+        &mut self,
         action: Action<rules::New>,
     ) -> Result<Action<rules::Sent>, Action<rules::New>> {
-        let lobby_ref_lock = lobby_ref.lock();
-        let lobby_locked = match lobby_ref_lock {
-            Ok(lobby) => lobby,
-            _ => return Err(action),
-        };
-        let mut lobby = match lobby_locked.try_borrow_mut() {
-            Ok(lobby) => lobby,
-            Err(_) => return Err(action),
-        };
         let mut disconnect = None;
         let mut found_player = None;
-        for player_ref in lobby.players.iter_mut() {
+        for player_ref in self.players.iter_mut() {
             let uid = player_ref.get_mut().getid();
             if uid == action.player() {
                 found_player = Some(player_ref.get_mut());
@@ -237,63 +228,40 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
         if let Some(player_idx) = disconnect {
             // We know that the player exists in the list we just saw it.
             // And we are still holding the lock on the lobby
-            lobby.disconnect(player_idx).unwrap();
+            self.disconnect(player_idx).unwrap();
         };
         Ok(action.transition())
     }
 
-    /// Starts the game.
-    ///
-    /// This function allows the usage of tokio to spawn game tasks.
-    pub async fn start(lobby_ref: Arc<Mutex<RefCell<Self>>>) {
-        println!("In lobby");
-        loop {
-            Self::main(lobby_ref.clone()).await;
-            sleep(Duration::from_millis(100)).await;
-        }
-    }
-
-    fn enqueue(&mut self, action: Result<Action<rules::Sent>, Action<rules::New>>) {
+    fn enqueue(
+        message_queue: &mut Vec<Action<rules::New>>,
+        event_queue: &mut Vec<rules::Action<rules::Sent>>,
+        action: Result<Action<rules::Sent>, Action<rules::New>>,
+    ) {
         match action {
             Ok(action) => {
-                self.event_queue.push(action);
+                event_queue.push(action);
             }
             Err(action) => {
-                let mut message_queue = self.message_queue.borrow_mut();
-                let queue = match (&mut message_queue).lock() {
-                    Ok(message_queue) => Some(message_queue),
-                    Err(_) => None,
-                };
-                if let Some(mut queue) = queue {
-                    queue.push(action);
-                }
+                message_queue.push(action);
             }
         }
     }
 
     /// Manages the game logic
-    async fn main(lobby_ref: Arc<Mutex<RefCell<Self>>>) {
+    fn main(&mut self) {
         // We should add a broadcast channel to the game lobby that shuts it down if this panics
         // for now it is better to just panic the thread if an error occurs here
-        let lobby_mutex = lobby_ref.lock().unwrap();
-
-        let mut lobby = match lobby_mutex.try_borrow_mut() {
-            Ok(lobby) => lobby,
-            // The error means that we can't acquire a mutable borrow
-            // at this time, if so, return and retry in a bit
-            Err(_) => return,
-        };
-
-        let messages = lobby.flush_messages();
+        let messages = self.flush_messages();
         let mut send_queue = Vec::new();
 
         for action in messages {
-            let rules = &mut lobby.rules;
+            let rules = &mut self.rules;
             let uid = action.player();
             println!("cmd : {:?}", action);
             match rules.register_message(&vec![0, 1, 2, 3, 4], &action) {
                 Ok(_) => {}
-                Err(rules::Error::UnexpectedResponse((event, action))) => {
+                Err(rules::Error::UnexpectedResponse((_event, action))) => {
                     send_queue.push(action);
                 }
                 Err(rules::Error::UnexpectedMessage) => {
@@ -305,12 +273,40 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
             }
         }
         for action in send_queue {
-            println!("{:?}", action);
-            let ret = async_std::task::block_on(Self::send_message(&lobby_ref, action));
-            println!("{:?}", ret);
-            lobby.enqueue(ret);
+            println!("sending {:?}", action);
+            let ret = self.send_message(action);
+            println!("send returned {:?}", ret);
+            let msg_queue: &mut Vec<Action<rules::New>> =
+                &mut async_std::task::block_on(async { self.message_queue.lock().await });
+            let event_queue = &mut self.event_queue;
+            Self::enqueue(msg_queue, event_queue, ret);
         }
 
         //lobby.message_queue.lock().unwrap().as_mut().a;
+    }
+}
+
+// Split all of the async logic from the sync logic for readability
+
+impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACITY> {
+    /// Starts the game.
+    ///
+    /// This function allows the usage of tokio to spawn game tasks.
+    pub async fn start(lobby_ref: Arc<Mutex<RefCell<Self>>>) {
+        println!("In lobby");
+        loop {
+            Self::_start(lobby_ref.clone()).await;
+            sleep(Duration::from_millis(100)).await;
+        }
+    }
+    async fn _start(lobby_ref: Arc<Mutex<RefCell<Self>>>) {
+        let lobby_lock = lobby_ref.lock().await;
+        let mut lobby = match lobby_lock.try_borrow_mut() {
+            Ok(lobby) => lobby,
+            Err(_) => {
+                return;
+            }
+        };
+        lobby.main();
     }
 }
