@@ -1,8 +1,10 @@
+use crate::engine::event::BackendEvent;
 use crate::engine::player::Message;
 
-use super::event::Event;
+use super::event::GameEvent;
 use super::player::{
-    self, EqPlayer, Id, New, Player, PlayerError, Reciver, Splittable, TcpReciver,
+    self, EqPlayer, Id, New, Player, PlayerError, Receiver, Splittable, TcpPlayer, TcpReciver,
+    WriteEnabled,
 };
 use super::rules::{self, Action, RuleEngine};
 use std::borrow::BorrowMut;
@@ -27,55 +29,71 @@ pub enum SessionError {
     PlayerError(PlayerError),
 }
 
-pub type MessageBuss = mpsc::Receiver<(usize, Event)>;
+pub type MessageBuss<Event: GameEvent> = mpsc::Receiver<(usize, Event)>;
 
-pub trait Session {
+pub trait Session<Event: GameEvent, const BUFFERSIZE: usize, const CAPACITY: usize> {
     type Error;
     fn new() -> Self;
-    fn delete(&mut self, uid: usize) -> Result<Box<RefCell<dyn Player>>, Self::Error>;
-    fn add<R: Reciver, P: Player + Splittable<R> + 'static, T: New<P>>(
+    fn delete(&mut self, uid: usize) -> Result<Box<RefCell<dyn Player<Event>>>, Self::Error>;
+    fn add<
+        R: Receiver<Event>,
+        P: Player<Event> + Splittable<Event, BUFFERSIZE, ReadPart = R> + 'static,
+        T: New<Event, CAPACITY, Output = P>,
+    >(
         &mut self,
         user: T,
-    ) -> (usize, dyn Reciver);
+    ) -> (usize, dyn Receiver<Event>);
 }
 
-pub trait LobbyInterface {
+pub trait LobbyInterface<Event: GameEvent> {
     /// Connects a specific player to a specific session   
-    fn connect<P: Player + 'static>(&mut self, player: Box<RefCell<P>>)
-        -> Result<(), SessionError>;
+    fn connect<P: Player<Event> + 'static>(
+        &mut self,
+        player: Box<RefCell<P>>,
+    ) -> Result<(), SessionError>;
     /// Disconnects a player from a session
     ///
     /// The player is stored in a temporary queue to allow reconnects
     fn disconnect(&mut self, player: usize) -> Result<(), SessionError>;
     /// Closes the session
-    fn close(self) -> Vec<Box<RefCell<dyn Player>>>;
+    fn close(self) -> Vec<Box<RefCell<dyn Player<Event>>>>;
 }
 
-pub trait PlayerFromTcpStream<const BUFFERSIZE: usize, const CAPACITY: usize> {
-    fn add<P: Player + Splittable<TcpReciver<BUFFERSIZE>> + Id + 'static, T: New<P> + EqPlayer>(
+pub trait PlayerFromTcpStream<const BUFFERSIZE: usize, const CAPACITY: usize, Event: GameEvent> {
+    fn add<
+        P: Player<Event>
+            + Splittable<
+                Event,
+                BUFFERSIZE,
+                WritePart = TcpPlayer<CAPACITY, WriteEnabled, Event>,
+                ReadPart = TcpReciver<BUFFERSIZE, Event>,
+            > + Id
+            + 'static,
+        T: New<Event, CAPACITY, Output = P> + EqPlayer,
+    >(
         &mut self,
         user: T,
-    ) -> Result<(usize, broadcast::Receiver<super::player::Message>), SessionError>;
+    ) -> Result<(usize, broadcast::Receiver<super::player::Message<Event>>), SessionError>;
 }
 
 pub struct Lobby<R: RuleEngine, const CAPACITY: usize> {
-    players: Vec<Box<RefCell<dyn Player>>>,
-    disconnected: Vec<(usize, Box<RefCell<dyn Player>>)>,
+    players: Vec<Box<RefCell<dyn Player<R::Event>>>>,
+    disconnected: Vec<(usize, Box<RefCell<dyn Player<R::Event>>>)>,
     rules: R,
-    message_queue: Arc<Mutex<Vec<Action<rules::New>>>>,
-    event_queue: Vec<rules::Action<rules::Sent>>,
+    message_queue: Arc<Mutex<Vec<Action<rules::New, R::Event>>>>,
+    event_queue: Vec<rules::Action<rules::Sent, R::Event>>,
     user_counter: usize,
 }
 
-impl<R: RuleEngine, const CAPACITY: usize> LobbyInterface for Lobby<R, CAPACITY> {
+impl<R: RuleEngine, const CAPACITY: usize> LobbyInterface<R::Event> for Lobby<R, CAPACITY> {
     /// Closes the session
-    fn close(self) -> Vec<Box<RefCell<dyn Player>>> {
+    fn close(self) -> Vec<Box<RefCell<dyn Player<R::Event>>>> {
         // Maybe we should notify the players here.
         self.players
     }
 
     /// Connects a specific player to a specific session   
-    fn connect<P: Player + 'static>(
+    fn connect<P: Player<R::Event> + 'static>(
         &mut self,
         player: Box<RefCell<P>>,
     ) -> Result<(), SessionError> {
@@ -112,13 +130,26 @@ impl<R: RuleEngine, const CAPACITY: usize> LobbyInterface for Lobby<R, CAPACITY>
     }
 }
 
-impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize, const BUFFERSIZE: usize>
-    PlayerFromTcpStream<BUFFERSIZE, CAPACITY> for Lobby<R, CAPACITY>
+impl<
+        R: RuleEngine + rules::Instantiable + 'static,
+        const CAPACITY: usize,
+        const BUFFERSIZE: usize,
+    > PlayerFromTcpStream<BUFFERSIZE, CAPACITY, R::Event> for Lobby<R, CAPACITY>
 {
-    fn add<P: Player + Splittable<TcpReciver<BUFFERSIZE>> + Id + 'static, T: New<P> + EqPlayer>(
+    fn add<
+        P: Player<R::Event>
+            + Splittable<
+                R::Event,
+                BUFFERSIZE,
+                WritePart = TcpPlayer<CAPACITY, WriteEnabled, R::Event>,
+                ReadPart = TcpReciver<BUFFERSIZE, R::Event>,
+            > + Id
+            + 'static,
+        T: New<R::Event, CAPACITY, Output = P> + EqPlayer,
+    >(
         &mut self,
         user: T,
-    ) -> Result<(usize, broadcast::Receiver<super::player::Message>), SessionError> {
+    ) -> Result<(usize, broadcast::Receiver<super::player::Message<R::Event>>), SessionError> {
         // Check if player is disconnected or not
 
         for connected_player in &self.players {
@@ -151,7 +182,7 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize, const BUFFERSIZ
         let (player, mut receiver) = user.new(uid).split();
 
         self.players.push(Box::new(RefCell::new(player)));
-        let subscriber: broadcast::Receiver<Message> = receiver.subscribe().unwrap();
+        let subscriber = receiver.subscribe().unwrap();
         tokio::spawn(async move {
             let _ = receiver.receive().await;
         });
@@ -160,8 +191,11 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize, const BUFFERSIZ
     }
 }
 
-impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACITY> {
-    async fn monitor(channel: &mut MessageBuss, mut queue: Arc<Mutex<Vec<Action<rules::New>>>>) {
+impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby<R, CAPACITY> {
+    async fn monitor(
+        channel: &mut MessageBuss<R::Event>,
+        mut queue: Arc<Mutex<Vec<Action<rules::New, R::Event>>>>,
+    ) {
         let (player, event) = match channel.try_recv() {
             Ok(value) => value,
             Err(_) => return,
@@ -169,12 +203,12 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
 
         let queue = queue.borrow_mut();
         let mut queue_locked = queue.lock().await;
-        queue_locked.push(Action::<rules::New>::new(player, event));
+        queue_locked.push(Action::<rules::New, R::Event>::new(player, event));
     }
-    pub fn new<ID: Sized>(_: ID, mut channel: MessageBuss) -> Self {
-        let msg_queue: Arc<Mutex<Vec<Action<rules::New>>>> =
+    pub fn new<ID: Sized>(_: ID, mut channel: MessageBuss<R::Event>) -> Self {
+        let msg_queue: Arc<Mutex<Vec<Action<rules::New, R::Event>>>> =
             Arc::new(Mutex::new(Vec::with_capacity(CAPACITY)));
-        let queue: Arc<Mutex<Vec<Action<rules::New>>>> = msg_queue.clone();
+        let queue: Arc<Mutex<Vec<Action<rules::New, R::Event>>>> = msg_queue.clone();
         // Monitor for events
         tokio::spawn(async move {
             loop {
@@ -195,7 +229,7 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
     /// Flushes the messages from the message queue returning the flushed messages
     ///
     /// Returns a [`Vec`] of events and the corresponding [`Player`] [`Id`](Player::getid).
-    fn flush_messages(&mut self) -> Vec<Action<rules::New>> {
+    fn flush_messages(&mut self) -> Vec<Action<rules::New, R::Event>> {
         let mut msg = async_std::task::block_on(async { self.message_queue.lock().await });
         let mut ret = Vec::new();
         while let Some(message) = msg.pop() {
@@ -207,8 +241,8 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
 
     fn send_message(
         &mut self,
-        action: Action<rules::New>,
-    ) -> Result<Action<rules::Sent>, Action<rules::New>> {
+        action: Action<rules::New, R::Event>,
+    ) -> Result<Action<rules::Sent, R::Event>, Action<rules::New, R::Event>> {
         let mut disconnect = None;
         let mut found_player = None;
         for player_ref in self.players.iter_mut() {
@@ -234,9 +268,9 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
     }
 
     fn enqueue(
-        message_queue: &mut Vec<Action<rules::New>>,
-        event_queue: &mut Vec<rules::Action<rules::Sent>>,
-        action: Result<Action<rules::Sent>, Action<rules::New>>,
+        message_queue: &mut Vec<Action<rules::New, R::Event>>,
+        event_queue: &mut Vec<rules::Action<rules::Sent, R::Event>>,
+        action: Result<Action<rules::Sent, R::Event>, Action<rules::New, R::Event>>,
     ) {
         match action {
             Ok(action) => {
@@ -261,11 +295,14 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
             println!("cmd : {:?}", action);
             match rules.register_message(&vec![0, 1, 2, 3, 4], &action) {
                 Ok(_) => {}
-                Err(rules::Error::UnexpectedResponse((_event, action))) => {
+                Err(rules::Error::UnexpectedResponse) => {
                     send_queue.push(action);
                 }
                 Err(rules::Error::UnexpectedMessage) => {
-                    send_queue.push(Action::<rules::New>::new(uid, Event::UnexpectedMessage));
+                    send_queue.push(Action::<rules::New, R::Event>::new(
+                        uid,
+                        BackendEvent::UnexpectedMessage.into(),
+                    ));
                 }
                 Err(e) => {
                     println!("{:?}", e);
@@ -276,7 +313,7 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
             println!("sending {:?}", action);
             let ret = self.send_message(action);
             println!("send returned {:?}", ret);
-            let msg_queue: &mut Vec<Action<rules::New>> =
+            let msg_queue: &mut Vec<Action<rules::New, R::Event>> =
                 &mut async_std::task::block_on(async { self.message_queue.lock().await });
             let event_queue = &mut self.event_queue;
             Self::enqueue(msg_queue, event_queue, ret);
@@ -288,7 +325,7 @@ impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACI
 
 // Split all of the async logic from the sync logic for readability
 
-impl<R: RuleEngine + rules::Instantiable, const CAPACITY: usize> Lobby<R, CAPACITY> {
+impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby<R, CAPACITY> {
     /// Starts the game.
     ///
     /// This function allows the usage of tokio to spawn game tasks.

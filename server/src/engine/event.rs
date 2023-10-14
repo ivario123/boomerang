@@ -8,15 +8,19 @@ pub struct SendableCard<C: Card> {
     card: C,
 }
 
-
-
+pub trait GameEvent:
+    Clone + Serialize + for<'a> Deserialize<'a> + PartialEq + From<BackendEvent> + Into<Vec<u8>> + std::fmt::Debug + Send + Sync
+{
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Definiton of protocol events.
-pub enum Event {
+pub enum BackendEvent {
     Connected(u8),
     UnexpectedMessage,
 }
+
+impl GameEvent for BackendEvent {}
 
 /// Enumerates all of the possible errors for the [`Event`] enum
 #[derive(Debug)]
@@ -25,7 +29,7 @@ pub enum EventError {
     InvalidBitStream,
 }
 
-impl Into<Vec<u8>> for Event {
+impl Into<Vec<u8>> for BackendEvent {
     fn into(self) -> Vec<u8> {
         serde_json::to_string(&self).unwrap().into_bytes()
     }
@@ -33,7 +37,7 @@ impl Into<Vec<u8>> for Event {
 
 #[cfg(test)]
 mod test {
-    use super::Event;
+    use super::BackendEvent as Event;
     #[test]
     pub fn test_serialize_distinct_type() {
         //

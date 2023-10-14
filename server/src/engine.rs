@@ -7,16 +7,18 @@ pub mod rules;
 pub mod session;
 use crate::engine::session::Lobby;
 
-use self::event::Event;
+use self::event::GameEvent;
 use self::player::Message;
+use self::rules::Instantiable;
+use self::rules::RuleEngine;
 use self::session::LobbyInterface;
 use self::session::PlayerFromTcpStream;
 use self::session::SessionError;
 use player::TcpPlayer;
 use std::cell::RefCell;
-use std::sync::{Arc};
-use tokio::sync::Mutex;
+use std::sync::Arc;
 use std::{net::TcpListener, net::TcpStream};
+use tokio::sync::Mutex;
 
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -44,7 +46,15 @@ async fn tcp_listener(listener: TcpListener, tx: mpsc::Sender<Cmd>) {
     }
 }
 type DefaultLobby = Lobby<rules::Austrailia<4>, 4>;
-pub async fn manager(listener: TcpListener) {
+pub async fn manager<
+    Rules: RuleEngine + Instantiable + Send + 'static,
+    const BUFFERSIZE: usize,
+    const CAPACITY: usize,
+>(
+    listener: TcpListener,
+) where
+    Lobby<Rules, CAPACITY>: PlayerFromTcpStream<CAPACITY, BUFFERSIZE, Rules::Event>,
+{
     println!("In manager");
     let (tx, rx) = mpsc::channel::<Cmd>(32);
     tokio::spawn(async move {
@@ -54,18 +64,18 @@ pub async fn manager(listener: TcpListener) {
     //let manager = Arc::new(Mutex::new(RefCell::new(UserManager::new())));
     let (event_tx, event_rx) = mpsc::channel(32);
 
-    let lobby: Arc<Mutex<RefCell<DefaultLobby>>> =
+    let lobby: Arc<Mutex<RefCell<Lobby<Rules, CAPACITY>>>> =
         Arc::new(Mutex::new(RefCell::new(session::Lobby::new(0, event_rx))));
     // Start the lobby
-    tokio::spawn(DefaultLobby::start(lobby.clone()));
+    tokio::spawn(Lobby::<Rules, CAPACITY>::start(lobby.clone()));
     // Does not return until the program exists, basically a block until exit
     tcp_manager(rx, lobby.clone(), event_tx).await;
 }
 
-async fn monitor<T: session::LobbyInterface>(
+async fn monitor<Event: GameEvent, T: session::LobbyInterface<Event>>(
     manager: Arc<Mutex<RefCell<T>>>,
     uid: usize,
-    mut rx: broadcast::Receiver<player::Message>,
+    mut rx: broadcast::Receiver<player::Message<Event>>,
     tx: mpsc::Sender<(usize, Event)>,
 ) {
     //println!("In monitor for {:?}", rx.resubscribe());
@@ -95,10 +105,15 @@ async fn monitor<T: session::LobbyInterface>(
 }
 
 fn add_player<
+    Event: GameEvent+'static,
+    const BUFFERSIZE: usize,
     const CAPACITY: usize,
-    T: LobbyInterface + PlayerFromTcpStream<32, CAPACITY> + 'static + std::marker::Send,
+    T: LobbyInterface<Event>
+        + PlayerFromTcpStream<BUFFERSIZE, CAPACITY, Event>
+        + 'static
+        + std::marker::Send,
 >(
-    player: Result<(usize, broadcast::Receiver<Message>), SessionError>,
+    player: Result<(usize, broadcast::Receiver<Message<Event>>), SessionError>,
     manager: Arc<Mutex<RefCell<T>>>,
     event_tx: mpsc::Sender<(usize, Event)>,
 ) {
@@ -119,8 +134,13 @@ fn add_player<
     }
 }
 async fn tcp_manager<
+    Event: GameEvent + 'static,
     const CAPACITY: usize,
-    T: LobbyInterface + PlayerFromTcpStream<32, CAPACITY> + 'static + std::marker::Send,
+    const BUFFERSIZE: usize,
+    T: LobbyInterface<Event>
+        + PlayerFromTcpStream<CAPACITY, BUFFERSIZE, Event>
+        + 'static
+        + std::marker::Send,
 >(
     mut rx: mpsc::Receiver<Cmd>,
     manager: Arc<Mutex<RefCell<T>>>,
@@ -139,8 +159,7 @@ async fn tcp_manager<
                     }
                 };
 
-                let user = borrowed_manager
-                    .add::<TcpPlayer<CAPACITY, player::Whole>, std::net::TcpStream>(user);
+                let user = borrowed_manager.add(user);
 
                 add_player(user, manager.clone(), event_tx.clone());
             }

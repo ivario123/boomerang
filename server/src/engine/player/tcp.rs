@@ -1,5 +1,5 @@
-use super::{EqPlayer, Id, Message, New, Player, PlayerError, Reciver};
-use crate::engine::event::Event;
+use super::{EqPlayer, Id, Message, New, Player, PlayerError};
+use crate::engine::event::GameEvent;
 use async_trait::async_trait;
 use std::marker::PhantomData;
 use tokio::net::{
@@ -19,25 +19,27 @@ impl TcpPlayerState for WriteEnabled {}
 
 // A player can fully be reprsented by a tcp stream, we just need to add functionality for it
 #[derive(Debug)]
-pub struct TcpPlayer<const CAPACITY: usize, STATE: TcpPlayerState> {
+pub struct TcpPlayer<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEvent> {
     pub mutex: Mutex<PhantomData<STATE>>,
     pub writer: OwnedWriteHalf,
     reader: Option<OwnedReadHalf>,
     id: usize,
-    sender: Option<Sender<Message>>,
+    sender: Option<Sender<Message<Event>>>,
     state: std::marker::PhantomData<STATE>,
 }
 
 #[derive(Debug)]
-pub struct TcpReciver<const CAPACITY: usize> {
+pub struct TcpReciver<const CAPACITY: usize, Event: GameEvent> {
     reader: OwnedReadHalf,
     id: usize,
-    sender: Sender<Message>,
+    sender: Sender<Message<Event>>,
     mutex: Mutex<PhantomData<bool>>,
 }
 
 #[async_trait]
-impl<const CAPACITY: usize, STATE: TcpPlayerState> Player for TcpPlayer<CAPACITY, STATE> {
+impl<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEvent> Player<Event>
+    for TcpPlayer<CAPACITY, STATE, Event>
+{
     async fn send(&mut self, event: Event) -> Result<(), PlayerError> {
         let _ = self.mutex.lock().await;
         println!("{:?} sending {:?}", self, event);
@@ -74,11 +76,12 @@ impl EqPlayer for std::net::TcpStream {
     }
 }
 
-impl<const CAPACITY: usize, const BUFFERSIZE: usize> super::Splittable<TcpReciver<BUFFERSIZE>>
-    for TcpPlayer<CAPACITY, Whole>
+impl<Event: GameEvent, const CAPACITY: usize, const BUFFERSIZE: usize>
+    super::Splittable<Event, BUFFERSIZE> for TcpPlayer<CAPACITY, Whole, Event>
 {
-    type WritePart = TcpPlayer<CAPACITY, WriteEnabled>;
-    fn split(self) -> (Self::WritePart, TcpReciver<BUFFERSIZE>) {
+    type WritePart = TcpPlayer<CAPACITY, WriteEnabled, Event>;
+    type ReadPart = TcpReciver<BUFFERSIZE, Event>;
+    fn split(self) -> (Self::WritePart, TcpReciver<BUFFERSIZE, Event>) {
         let Some(reader) = self.reader else {
             unreachable!()
         };
@@ -105,7 +108,9 @@ impl<const CAPACITY: usize, const BUFFERSIZE: usize> super::Splittable<TcpRecive
     }
 }
 
-impl<const CAPACITY: usize, STATE: TcpPlayerState> TcpPlayer<CAPACITY, STATE> {
+impl<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEvent>
+    TcpPlayer<CAPACITY, STATE, Event>
+{
     pub fn new(stream: TcpStream, id: usize) -> Self {
         let (sender, _rx) = broadcast::channel(CAPACITY);
         let (reader, writer) = stream.into_split();
@@ -122,16 +127,26 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState> TcpPlayer<CAPACITY, STATE> {
     }
 }
 
-impl<const CAPACITY: usize> New<TcpPlayer<CAPACITY, Whole>> for std::net::TcpStream {
-    fn new(self, uid: usize) -> TcpPlayer<CAPACITY, Whole> {
+impl<const CAPACITY: usize, Event: GameEvent> New<Event, CAPACITY> for std::net::TcpStream {
+    type Output = TcpPlayer<CAPACITY, Whole, Event>;
+    fn new(self, uid: usize) -> Self::Output {
         let stream = TcpStream::from_std(self).unwrap();
         TcpPlayer::new(stream, uid)
     }
 }
+impl<const CAPACITY: usize, Event: GameEvent, State: TcpPlayerState> Id
+    for TcpPlayer<CAPACITY, State, Event>
+{
+    fn identifier(&self) -> String {
+        format!("TcpPlayer, Peer : {:?}", self.writer.peer_addr())
+    }
+}
 
 #[async_trait]
-impl<const CAPACITY: usize> Reciver for TcpReciver<CAPACITY> {
-    fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError> {
+impl<const CAPACITY: usize, Event: GameEvent + Sync> crate::engine::player::Receiver<Event>
+    for TcpReciver<CAPACITY, Event>
+{
+    fn subscribe(&mut self) -> Result<Receiver<Message<Event>>, PlayerError> {
         let sender = &self.sender;
         Ok(sender.subscribe())
     }
@@ -174,13 +189,15 @@ impl<const CAPACITY: usize> Reciver for TcpReciver<CAPACITY> {
             };
 
             for event in events.iter() {
-                let _ = self.mutex.lock().await;
-                // Re package in to a nice little message
-                let msg: Message = Message::Received {
-                    event: Ok(event.clone()),
-                    user: self.id.clone(),
-                };
-                self.sender.send(msg).unwrap();
+                {
+                    let _ = self.mutex.lock().await;
+                    // Re package in to a nice little message
+                    let msg: Message<Event> = Message::Received {
+                        event: Ok(event.clone()),
+                        user: self.id.clone(),
+                    };
+                    self.sender.send(msg).unwrap();
+                }
                 println!("Sent to manager");
             }
         }
