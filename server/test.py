@@ -17,6 +17,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     other_bytes.append(0)
     for i in range(0,10):
         s.send(other_bytes)
+        if i != 0:
+            response = s.recvmsg(1024)
+            print(f"{response}")
         import time
         time.sleep(1)
     s.send(other_bytes)

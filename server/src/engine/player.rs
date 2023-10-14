@@ -32,23 +32,46 @@ pub enum Message {
 #[async_trait]
 pub trait Reciver: std::fmt::Debug {
     fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError>;
-    async fn recive(mut self) -> Result<(), PlayerError>;
+    async fn receive(mut self) -> Result<(), PlayerError>;
 }
 pub trait ReasignUid {
     fn re_asign_uid(self) -> Self;
 }
 
 #[async_trait]
-pub trait Player: std::fmt::Debug + Send  {
+pub trait Player: std::fmt::Debug + Send {
     fn getid(&self) -> usize;
     async fn send(&mut self, event: Event) -> Result<(), PlayerError>;
+    fn send_blocking(&mut self, event: Event) -> Result<(), PlayerError> {
+        async_std::task::block_on(async {
+            let async_result = self.send(event).await;
+            async_result
+        })
+    }
+    fn identifier(&self) -> String;
+}
+
+pub trait Id {
+    fn identifier(&self) -> String;
+}
+
+impl<P: Player> Id for P {
+    fn identifier(&self) -> String {
+        (self as &dyn Player).identifier()
+    }
 }
 
 pub trait EqPlayer {
-    fn eq(&self, other: impl EqPlayer) -> bool{
+    fn identifier(&self) -> String;
+    fn eq(&self, other: impl Id) -> bool {
+        self.identifier().to_owned() == other.identifier()
+    }
+}
+
+impl dyn Player {
+    fn eq(&self, other: impl Id) -> bool {
         self.identifier() == other.identifier()
     }
-    fn identifier(&self) -> String;
 }
 
 pub trait Splittable<R: Reciver> {

@@ -1,13 +1,8 @@
-use super::{EqPlayer, Message, New, Player, PlayerError, ReasignUid, Reciver};
+use super::{EqPlayer, Id, Message, New, Player, PlayerError, Reciver};
 use crate::engine::event::{Event, EventList};
+use async_std::task;
 use async_trait::async_trait;
-use std::{
-    any::{Any, TypeId},
-    cell::RefCell,
-    fmt::{write, Write},
-    ops::Deref,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::net::{
     tcp::{OwnedReadHalf, OwnedWriteHalf},
     TcpStream,
@@ -52,18 +47,21 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState> Player for TcpPlayer<CAPACITY
     fn getid(&self) -> usize {
         return self.id.clone();
     }
-}
-impl EqPlayer for std::net::TcpStream {
-    fn identifier(&self) -> String {
-        format!("TcpPlayer, Peer : {:?}", self.peer_addr())
-    }
-}
-impl<const CAPACITY: usize, State: TcpPlayerState> EqPlayer for TcpPlayer<CAPACITY, State> {
     fn identifier(&self) -> String {
         format!(
             "TcpPlayer, Peer : {:?}",
             self.writer.lock().unwrap().peer_addr()
         )
+    }
+}
+impl Id for std::net::TcpStream {
+    fn identifier(&self) -> String {
+        format!("TcpPlayer, Peer : {:?}", self.peer_addr())
+    }
+}
+impl EqPlayer for std::net::TcpStream {
+    fn identifier(&self) -> String {
+        format!("TcpPlayer, Peer : {:?}", self.peer_addr())
     }
 }
 
@@ -132,7 +130,7 @@ impl<const CAPACITY: usize> Reciver for TcpReciver<CAPACITY> {
         Ok(sender.subscribe())
     }
 
-    async fn recive(mut self) -> Result<(), PlayerError> {
+    async fn receive(mut self) -> Result<(), PlayerError> {
         loop {
             let mut buffer = [0; 128];
             let readable = self.reader.lock().unwrap();
@@ -159,7 +157,7 @@ impl<const CAPACITY: usize> Reciver for TcpReciver<CAPACITY> {
                     Ok(event) => Ok(event.clone()),
                     Err(_) => Err(PlayerError::SendMessageError),
                 };
-                let sender_clone = self.sender.clone();
+                let sender_clone: Arc<Box<Mutex<Sender<Message>>>> = self.sender.clone();
 
                 tokio::spawn({
                     async move {
@@ -167,7 +165,22 @@ impl<const CAPACITY: usize> Reciver for TcpReciver<CAPACITY> {
                             event: msg,
                             user: self.id.clone(),
                         };
-                        sender_clone.lock().unwrap().send(msg).unwrap();
+                        let send = |sender: Arc<Box<Mutex<Sender<Message>>>>| {
+                            let sender_locked = match sender.lock() {
+                                Ok(valid_sender) => valid_sender,
+                                // There is no way to recover from this.
+                                Err(_) => return,
+                            };
+
+                            match sender_locked.send(msg) {
+                                Ok(_) => {}
+                                Err(_) => {
+                                    // Here we need to recurse with some counter to terminate the
+                                    // loop if some threshold is exceeded.
+                                }
+                            };
+                        };
+                        send(sender_clone.clone());
                     }
                 });
             }

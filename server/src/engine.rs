@@ -8,22 +8,20 @@ pub mod session;
 use crate::engine::session::Lobby;
 
 use self::event::Event;
+use self::player::Message;
 use self::session::LobbyInterface;
 use self::session::PlayerFromTcpStream;
+use self::session::SessionError;
 use player::TcpPlayer;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 use std::{net::TcpListener, net::TcpStream};
-use tokio::net::TcpStream as TokioTcpStream;
+
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 #[derive(Debug)]
 enum Cmd {
     Add { user: TcpStream },
-}
-#[derive(Debug)]
-pub enum EngineError {
-    NoSuchPlayer,
 }
 
 /// Wait for tcp connections pass to adder
@@ -73,7 +71,7 @@ async fn monitor<T: session::LobbyInterface>(
     loop {
         match rx.recv().await {
             Ok(message) => match message {
-                player::Message::Recived { event, user } => match event {
+                player::Message::Recived { event, user: _ } => match event {
                     Err(_) => {
                         break;
                     }
@@ -99,40 +97,62 @@ async fn monitor<T: session::LobbyInterface>(
     println!("Closed");
     let _ = manager.lock().unwrap().borrow_mut().disconnect(uid);
 }
+
+fn add_player<
+    const CAPACITY: usize,
+    T: LobbyInterface + PlayerFromTcpStream<32, CAPACITY> + 'static + std::marker::Send,
+>(
+    player: Result<(usize, broadcast::Receiver<Message>), SessionError>,
+    manager: Arc<Mutex<RefCell<T>>>,
+    event_tx: mpsc::Sender<(usize, Event)>,
+) {
+    match player {
+        Ok((uid, channel)) => {
+            tokio::spawn(async move {
+                monitor(manager, uid, channel, event_tx).await;
+            });
+        }
+        Err(e) => {
+            println!("{:?}", e);
+        }
+        _ => {
+            // No new player to add
+        }
+    }
+}
 async fn tcp_manager<
     const CAPACITY: usize,
     T: LobbyInterface + PlayerFromTcpStream<32, CAPACITY> + 'static + std::marker::Send,
 >(
     mut rx: mpsc::Receiver<Cmd>,
-    mgr: Arc<Mutex<RefCell<T>>>,
+    manager: Arc<Mutex<RefCell<T>>>,
     event_tx: mpsc::Sender<(usize, Event)>,
 ) {
     // Manage incoming tcp connections
     while let Some(message) = rx.recv().await {
-        let manager_clone = mgr.clone();
-        let mut new_monitor = None;
         match message {
             Cmd::Add { user } => {
-                let user = user;
-                new_monitor = Some(
-                    (manager_clone)
-                        .lock()
-                        .unwrap()
-                        .borrow_mut()
-                        .add::<TcpPlayer<CAPACITY, player::Whole>, std::net::TcpStream>(user),
-                );
+                let cloned_manager = manager.clone();
+                let locked_manager = match cloned_manager.lock() {
+                    Ok(manager) => manager,
+                    // Mutex locks only return error if they are poisoned,
+                    // That means that the we should exit the main loop
+                    Err(_) => {
+                        return;
+                    }
+                };
+                let mut borrowed_manager = match locked_manager.try_borrow_mut() {
+                    Ok(manager) => manager,
+                    Err(_) => {
+                        return;
+                    }
+                };
+
+                let user = borrowed_manager
+                    .add::<TcpPlayer<CAPACITY, player::Whole>, std::net::TcpStream>(user);
+
+                add_player(user, manager.clone(), event_tx.clone());
             }
-            _ => {}
-        }
-        println!("{:?}", new_monitor);
-        match new_monitor {
-            Some((uid, channel)) => {
-                let event_tx_clone = event_tx.clone();
-                tokio::spawn(async move {
-                    monitor(manager_clone, uid, channel, event_tx_clone).await;
-                });
-            }
-            _ => {}
         }
     }
 }

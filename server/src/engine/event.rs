@@ -2,7 +2,6 @@ use crate::engine::card::AustraliaCards;
 
 use super::card::Card;
 
-#[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 /// Definiton of protocol events.
 pub enum Event {
@@ -13,6 +12,7 @@ pub enum Event {
     KeepAlive,
     KeepAliveResponse,
     Connected(u8),
+    UnexpectedMessage,
 }
 
 /// Enumerates all of the possible errors for the [`Event`] enum
@@ -41,8 +41,11 @@ impl<'a> Into<Vec<u8>> for &'a Event {
             KeepAlive => vec![5],
             KeepAliveResponse => vec![6],
             Connected(uid) => {
-                vec![7,*uid]
-            },
+                vec![7, *uid]
+            }
+            UnexpectedMessage => {
+                vec![8]
+            }
         };
         ret.push(0);
         return ret;
@@ -70,6 +73,11 @@ impl TryInto<Event> for Vec<&u8> {
             },
             5 => Ok(KeepAlive),
             6 => Ok(KeepAliveResponse),
+            7 => match self.len() > 1 {
+                true => Ok(Connected(*self[1])),
+                false => Err(EventError::InvalidBitStream),
+            },
+            8 => Ok(UnexpectedMessage),
             _ => Err(EventError::InvalidBitStream),
         }
     }

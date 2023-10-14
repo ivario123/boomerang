@@ -4,8 +4,7 @@ use std::fmt::Debug;
 pub enum CardError {
     NoSuchCard,
 }
-
-pub trait Card: Debug {
+pub trait Card: Debug + Clone + Copy {
     fn as_u8<'a>(&'a self) -> &'a [u8];
     fn from_u8(stream: &[&u8]) -> Result<Self, CardError>
     where
