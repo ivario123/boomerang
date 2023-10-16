@@ -10,9 +10,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    layout,
     prelude::{Backend, Constraint, CrosstermBackend, Direction, Layout, Rect},
-    style::{Style, Stylize},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };

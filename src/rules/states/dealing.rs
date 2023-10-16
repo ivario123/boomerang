@@ -1,9 +1,9 @@
-use std::marker::PhantomData;
+use crate::{
+    engine::rules::{Action, Error, New, Received},
+    rules::{Event, GameMetaData},
+};
 
-use crate::engine::rules::{GameMetaData, Action, New, Event, Error, Received};
-
-use super::{GameState, DiscardCard, DealingCards};
-
+use super::{DealingCards, DiscardCard, GameState};
 
 impl DealingCards {
     pub fn new(players: &[usize]) -> Self {
@@ -30,11 +30,7 @@ impl GameState for DealingCards {
         if self.pending_actions.len() != 0 {
             for player in players {
                 if !self.pending_actions.contains(&(*player as u8)) {
-                    actions.push(Action {
-                        player: *player,
-                        action: Event::WaitingForPlayers,
-                        status: PhantomData,
-                    })
+                    actions.push(Action::new(*player, Event::WaitingForPlayers));
                 }
             }
             // Sleep server for a long time since there is noting to do
@@ -47,7 +43,7 @@ impl GameState for DealingCards {
         if done {
             // Now we can transition to the discarding cards
             return (
-                tokio::time::Duration::from_millis(1),
+                tokio::time::Duration::from_secs(1),
                 actions,
                 Some(Box::new(DiscardCard::new(self.state.clone()))),
             );
@@ -68,19 +64,14 @@ impl GameState for DealingCards {
         &mut self,
         action: (Event, &Action<Received, Event>),
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        let (
-            response,
-            Action {
-                player,
-                action,
-                ..
-            },
-        ) = action;
+        let (response, action) = action;
+        let (player, action) = (action.player(), action.action());
+
         let mut pending = None;
         // The only responses that are valid in this context
         // is the
         for (idx, request) in self.pending_actions.iter().enumerate() {
-            if *request == *player as u8 {
+            if *request == player as u8 {
                 pending = Some(idx);
                 break;
             }

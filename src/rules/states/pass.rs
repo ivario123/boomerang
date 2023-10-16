@@ -1,8 +1,9 @@
-use std::marker::PhantomData;
+use crate::{
+    engine::rules::{Action, Error, New, Received},
+    rules::{Event, GameMetaData},
+};
 
-use crate::engine::rules::{Action, Error, Event, GameMetaData, New, Received};
-
-use super::{GameState,PassHand, ShowCard};
+use super::{GameState, PassHand, ShowCard};
 
 impl PassHand {
     pub fn new(state: GameMetaData) -> Self {
@@ -28,11 +29,7 @@ impl GameState for PassHand {
         if self.pending.len() != 0 {
             for player in players {
                 if !self.pending.contains(&(*player as u8)) {
-                    actions.push(Action {
-                        player: *player,
-                        action: Event::WaitingForPlayers,
-                        status: PhantomData,
-                    })
+                    actions.push(Action::new(*player, Event::WaitingForPlayers))
                 }
             }
             // Sleep server for a long time since there is noting to do
@@ -41,11 +38,10 @@ impl GameState for PassHand {
         self.state.circulate();
         if !self.requested {
             for player in &mut self.state.players {
-                actions.push(Action {
-                    player: player.id as usize,
-                    action: Event::ReassignHand(player.hand.clone()),
-                    status: PhantomData,
-                });
+                actions.push(Action::new(
+                    player.id as usize,
+                    Event::ReassignHand(player.hand.clone()),
+                ));
                 self.pending.push(player.id);
             }
             self.requested = true;
@@ -70,18 +66,12 @@ impl GameState for PassHand {
         &mut self,
         action: (Event, &Action<Received, Event>),
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        let (
-            response,
-            Action {
-                player,
-                action,
-                ..
-            },
-        ) = action;
+        let (response, action) = action;
+        let (player,action) = (action.player(),action.action());
 
         let mut outstanding_request = None;
         for (idx, &id) in self.pending.iter().enumerate() {
-            if id as usize == *player {
+            if id as usize == player {
                 outstanding_request = Some(idx);
             }
         }

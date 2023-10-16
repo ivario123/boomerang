@@ -1,4 +1,4 @@
-use crate::engine::rules::{Action, New, Event, Error, Received};
+use crate::{engine::rules::{Action, New, Error, Received}, rules::Event};
 
 use super::{GameState, WaitingForPlayers, DealingCards};
 
@@ -35,7 +35,7 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
                 // players disconnected it might be another state
                 let state = std::mem::replace(&mut self.next_state, None);
                 return (
-                    tokio::time::Duration::from_millis(200),
+                    tokio::time::Duration::from_secs(10),
                     actions,
                     Some(match state {
                         Some(state) => state,
@@ -53,7 +53,7 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
                 }
             }
         }
-        return (tokio::time::Duration::from_millis(200), actions, None);
+        return (tokio::time::Duration::from_secs(10), actions, None);
     }
 
     fn register_message(
@@ -70,13 +70,13 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
         // This state can only handle connected or ready checks
         let (response, request) = action;
 
-        match request.action {
+        match request.action() {
             Event::ReadyCheck => match response {
                 Event::Accept => {
-                    self.ready.push(request.player as u8);
+                    self.ready.push(request.player() as u8);
                     let mut del_idx = None;
                     for (idx, player) in self.pending_ready.iter().enumerate() {
-                        if *player == request.player as u8 {
+                        if *player == request.player() as u8 {
                             del_idx = Some(idx);
                         }
                     }
@@ -89,7 +89,7 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
                 Event::Deny => {
                     let mut del_idx = None;
                     for (idx, player) in self.pending_ready.iter().enumerate() {
-                        if *player == request.player as u8 {
+                        if *player == request.player() as u8 {
                             del_idx = Some(idx);
                         }
                     }

@@ -1,10 +1,37 @@
-use server::engine::rules::{cards::AustraliaCard, Event};
+mod rules;
+extern crate clap;
+use std::net::TcpListener;
+
+use clap::{command, Parser, ValueEnum};
+use rules::{cards::AustraliaCard, Event};
+use server::engine;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
-#[tokio::main]
-async fn main() {
+
+use crate::rules::Australia;
+
+#[derive(Debug,Clone, Copy, ValueEnum)]
+pub enum Mode {
+    Server,
+    Client,
+}
+
+#[derive(Parser)] // requires `derive` feature
+#[command(
+    author = "Ivar Jönsson <ivajns-9@student.ltu.se>",
+    version = "0.0.1",
+    about = "Boomerang Australia",
+    long_about = "Implements a generic boomerang client and server with pre defined rules for the boomerang
+australia game."
+)]
+struct Args {
+    #[arg(short = 'm')]
+    mode: Mode,
+}
+
+async fn player_main() {
     let mut stream = match TcpStream::connect("127.0.0.1:2047").await {
         Ok(val) => val,
         Err(e) => {
@@ -12,6 +39,7 @@ async fn main() {
             panic!();
         }
     };
+
     let (mut read_part, mut write_part) = stream.split();
     let mut send = |msg: Event| {
         let to_send: &Vec<u8> = &msg.into();
@@ -64,5 +92,30 @@ async fn main() {
             }
             _ => {}
         }
+    }
+}
+
+async fn server_main() {
+    println!("Running as server");
+    let listener = match TcpListener::bind("127.0.0.1:2047") {
+        Ok(val) => val,
+        Err(e) => {
+            println!("{:?}", e);
+            panic!();
+        }
+    };
+    type Rules = Australia<4, 2>;
+    engine::manager::<Rules, 4, 4>(listener).await;
+    println!("Hello world");
+    loop {}
+}
+
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
+    println!("{:?}",args.mode);
+    match args.mode {
+        Mode::Server => server_main().await,
+        Mode::Client => player_main().await,
     }
 }

@@ -1,4 +1,6 @@
-use super::{Action, Error, Event, GameMetaData, New, Received};
+extern crate server;
+use super::{GameMetaData, Event};
+use server::engine::rules::{Action, Error, New, Received};
 
 pub mod dealing;
 pub mod discard;

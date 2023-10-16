@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-
-use crate::engine::rules::{GameMetaData, Action, New, Event, Error, Received};
+use crate::{engine::rules::{Action, New, Error, Received}, rules::{GameMetaData, Event}};
 
 use super::{Scoring, GameState};
 
@@ -28,11 +26,7 @@ impl GameState for Scoring {
         if self.pending.len() != 0 {
             for player in players {
                 if !self.pending.contains(&(*player as u8)) {
-                    actions.push(Action {
-                        player: *player,
-                        action: Event::WaitingForPlayers,
-                        status: PhantomData,
-                    })
+                    actions.push(Action::new(*player,Event::WaitingForPlayers))
                 }
             }
             // Sleep server for a long time since there is noting to do
@@ -40,11 +34,7 @@ impl GameState for Scoring {
         }
         if !self.requested {
             for player in &mut self.state.players {
-                actions.push(Action {
-                    player: player.id as usize,
-                    action: Event::ScoreActivityQuery(player.un_scored_activity.clone()),
-                    status: PhantomData,
-                });
+                actions.push(Action::new(player.id as usize,Event::ScoreActivityQuery(player.un_scored_activity.clone())));
                 self.pending.push(player.id);
             }
             self.requested = true;

@@ -1,11 +1,11 @@
-use std::marker::PhantomData;
+use crate::{
+    engine::rules::{Action, Error, New, Received},
+    rules::{Event, GameMetaData},
+};
 
-use crate::engine::rules::{GameMetaData, Action, New, Event, Error, Received};
+use super::{GameState, PassHand, Scoring, ShowCard};
 
-use super::{GameState, PassHand, DiscardCard};
-
-
-impl DiscardCard {
+impl ShowCard {
     pub fn new(state: GameMetaData) -> Self {
         Self {
             state,
@@ -15,7 +15,7 @@ impl DiscardCard {
     }
 }
 
-impl GameState for DiscardCard {
+impl GameState for ShowCard {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,
@@ -28,30 +28,48 @@ impl GameState for DiscardCard {
         let mut request = |event: Event| {
             for player in players {
                 if !self.pending.contains(&(*player as u8)) {
-                    actions.push(Action {
-                        player: *player,
-                        action: event.clone(),
-                        status: PhantomData,
-                    })
+                    actions.push(Action::new(*player, event.clone()))
                 }
             }
         };
-        // If we have any out standing messages await these
+        // If we have any out standing messages await them
         if self.pending.len() != 0 {
             request(Event::WaitingForPlayers);
             // Sleep server for a long time since there is noting to do
             return (tokio::time::Duration::from_secs(2), actions, None);
         }
         if !self.requested {
-            for player in players {
-                actions.push(Action {
-                    player: *player,
-                    action: Event::DiscardRequest,
-                    status: PhantomData,
-                });
-                self.pending.push(*player as u8);
+            for player in &mut self.state.players {
+                actions.push(Action::new(player.id as usize, Event::ShowRequest));
+                self.pending.push(player.id);
             }
             self.requested = true;
+        } else if self.requested && self.pending.len() == 0 {
+            // Show every other players show pile to the others and transition
+            for player in &self.state.players {
+                for other_player in &self.state.players {
+                    if player.id != other_player.id {
+                        actions.push(Action::new(
+                            player.id as usize,
+                            Event::ShowPile(player.id, player.show_pile.clone()),
+                        ));
+                    }
+                }
+            }
+            if self.state.hands_empty() {
+                // Now we move to scoring
+                return (
+                    tokio::time::Duration::from_secs(2),
+                    actions,
+                    Some(Box::new(Scoring::new(self.state.clone()))),
+                );
+            } else {
+                return (
+                    tokio::time::Duration::from_secs(2),
+                    actions,
+                    Some(Box::new(PassHand::new(self.state.clone()))),
+                );
+            }
         } else {
             return (
                 tokio::time::Duration::from_secs(2),
@@ -74,20 +92,14 @@ impl GameState for DiscardCard {
         action: (Event, &Action<Received, Event>),
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         println!("{:?}", action);
-        let (
-            response,
-            Action {
-                player,
-                action,
-                ..
+        let (response, action) = action;
+        let (player, action) = (action.player(), action.action());
 
-            },
-        ) = action;
         println!("{:?},{:?},{:?}", response, player, action);
 
         let mut outstanding_request = None;
         for (idx, &id) in self.pending.iter().enumerate() {
-            if id as usize == *player {
+            if id as usize == player {
                 outstanding_request = Some(idx);
             }
         }
@@ -97,8 +109,8 @@ impl GameState for DiscardCard {
         };
 
         match action {
-            Event::DiscardRequest => match response {
-                Event::Discard(idx) => match self.state.discard(player, &idx) {
+            Event::ShowRequest => match response {
+                Event::Show(idx) => match self.state.show(&player, &idx) {
                     Ok(()) => {
                         self.pending.remove(request_idx);
                         Ok(None)
