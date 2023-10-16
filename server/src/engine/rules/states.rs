@@ -30,6 +30,7 @@ pub trait GameState: Send + std::fmt::Debug {
 pub struct DealingCards {
     state: GameMetaData,
     pending_actions: Vec<u8>,
+    #[allow(dead_code)]
     validated: Vec<usize>,
 }
 #[derive(Debug)]

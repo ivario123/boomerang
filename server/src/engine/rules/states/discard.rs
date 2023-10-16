@@ -64,7 +64,7 @@ impl GameState for DiscardCard {
 
     fn register_message(
         &mut self,
-        action: &Action<New, Event>,
+        _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         todo!()
     }
@@ -78,8 +78,9 @@ impl GameState for DiscardCard {
             response,
             Action {
                 player,
-                status,
                 action,
+                ..
+
             },
         ) = action;
         println!("{:?},{:?},{:?}", response, player, action);

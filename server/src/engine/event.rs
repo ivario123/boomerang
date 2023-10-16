@@ -15,7 +15,7 @@ pub trait GameEvent:
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// Definiton of protocol events.
+/// Definition of protocol events.
 pub enum BackendEvent {
     Connected(u8),
     UnexpectedMessage,
@@ -27,12 +27,6 @@ impl GameEvent for BackendEvent {
     }
 }
 
-/// Enumerates all of the possible errors for the [`Event`] enum
-#[derive(Debug)]
-pub enum EventError {
-    /// Thrown when the parsing of a bitstream fails.
-    InvalidBitStream,
-}
 
 impl Into<Vec<u8>> for BackendEvent {
     fn into(self) -> Vec<u8> {

@@ -1,15 +1,12 @@
 use crate::engine::event::BackendEvent;
-use crate::engine::player::Message;
 
-use super::event::{self, GameEvent};
+use super::event::GameEvent;
 use super::player::{
-    self, EqPlayer, Id, New, Player, PlayerError, Receiver, Splittable, TcpPlayer, TcpReciver,
-    WriteEnabled,
+    EqPlayer, Id, New, Player, PlayerError, Receiver, Split, TcpPlayer, TcpReceiver, WriteEnabled,
 };
 use super::rules::{self, Action, RuleEngine};
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -19,25 +16,25 @@ use tokio::time::sleep;
 
 #[derive(Debug)]
 pub enum SessionError {
-    /// Thrown when a disconnect is requested for a non exsisting player
+    /// Thrown when a disconnect is requested for a non existing player
     NoSuchPlayer,
     /// Thrown when a player is trying to connect to a full lobby
     LobbyFull,
     /// Thrown when a that player is already connected to the game
     PlayerAlreadyConnected,
     /// [`Player::send`] threw some error
-    PlayerError(PlayerError),
+    _PlayerError(PlayerError),
 }
 
-pub type MessageBuss<Event: GameEvent> = mpsc::Receiver<(usize, Event)>;
+pub type MessageBuss<Event> = mpsc::Receiver<(usize, Event)>;
 
-pub trait Session<Event: GameEvent, const BUFFERSIZE: usize, const CAPACITY: usize> {
+pub trait Session<Event: GameEvent, const BUFFER_SIZE: usize, const CAPACITY: usize> {
     type Error;
     fn new() -> Self;
     fn delete(&mut self, uid: usize) -> Result<Box<RefCell<dyn Player<Event>>>, Self::Error>;
     fn add<
         R: Receiver<Event>,
-        P: Player<Event> + Splittable<Event, BUFFERSIZE, ReadPart = R> + 'static,
+        P: Player<Event> + Split<Event, BUFFER_SIZE, ReadPart = R> + 'static,
         T: New<Event, CAPACITY, Output = P>,
     >(
         &mut self,
@@ -59,14 +56,14 @@ pub trait LobbyInterface<Event: GameEvent> {
     fn close(self) -> Vec<Box<RefCell<dyn Player<Event>>>>;
 }
 
-pub trait PlayerFromTcpStream<const BUFFERSIZE: usize, const CAPACITY: usize, Event: GameEvent> {
+pub trait PlayerFromTcpStream<const BUFFER_SIZE: usize, const CAPACITY: usize, Event: GameEvent> {
     fn add<
         P: Player<Event>
-            + Splittable<
+            + Split<
                 Event,
-                BUFFERSIZE,
+                BUFFER_SIZE,
                 WritePart = TcpPlayer<CAPACITY, WriteEnabled, Event>,
-                ReadPart = TcpReciver<BUFFERSIZE, Event>,
+                ReadPart = TcpReceiver<BUFFER_SIZE, Event>,
             > + Id
             + 'static,
         T: New<Event, CAPACITY, Output = P> + EqPlayer,
@@ -114,7 +111,7 @@ impl<R: RuleEngine, const CAPACITY: usize> LobbyInterface<R::Event> for Lobby<R,
     fn disconnect(&mut self, player: usize) -> Result<(), SessionError> {
         let mut id = None;
         for (idx, el) in self.players.iter().enumerate() {
-            if player == el.borrow().getid() {
+            if player == el.borrow().get_id() {
                 id = Some(idx);
                 break;
             }
@@ -135,16 +132,16 @@ impl<R: RuleEngine, const CAPACITY: usize> LobbyInterface<R::Event> for Lobby<R,
 impl<
         R: RuleEngine + rules::Instantiable + 'static,
         const CAPACITY: usize,
-        const BUFFERSIZE: usize,
-    > PlayerFromTcpStream<BUFFERSIZE, CAPACITY, R::Event> for Lobby<R, CAPACITY>
+        const BUFFER_SIZE: usize,
+    > PlayerFromTcpStream<BUFFER_SIZE, CAPACITY, R::Event> for Lobby<R, CAPACITY>
 {
     fn add<
         P: Player<R::Event>
-            + Splittable<
+            + Split<
                 R::Event,
-                BUFFERSIZE,
+                BUFFER_SIZE,
                 WritePart = TcpPlayer<CAPACITY, WriteEnabled, R::Event>,
-                ReadPart = TcpReciver<BUFFERSIZE, R::Event>,
+                ReadPart = TcpReceiver<BUFFER_SIZE, R::Event>,
             > + Id
             + 'static,
         T: New<R::Event, CAPACITY, Output = P> + EqPlayer,
@@ -197,7 +194,7 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
     fn players(&self) -> Vec<usize> {
         let mut ret = Vec::new();
         for player in self.players.iter() {
-            ret.push(player.borrow().getid());
+            ret.push(player.borrow().get_id());
         }
         ret
     }
@@ -236,7 +233,7 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
 
     /// Flushes the messages from the message queue returning the flushed messages
     ///
-    /// Returns a [`Vec`] of events and the corresponding [`Player`] [`Id`](Player::getid).
+    /// Returns a [`Vec`] of events and the corresponding [`Player`] [`Id`](Player::get_id).
     fn flush_messages(
         &mut self,
     ) -> (
@@ -244,7 +241,8 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
         Vec<(R::Event, Action<rules::Received, R::Event>)>,
     ) {
         let mut msg = async_std::task::block_on(async { self.message_queue.lock().await });
-        let mut new_responses = async_std::task::block_on(async { self.received_events.lock().await });
+        let mut new_responses =
+            async_std::task::block_on(async { self.received_events.lock().await });
         let mut messages = Vec::new();
         while let Some(message) = msg.pop() {
             println!("flushing {:?}", message);
@@ -265,13 +263,13 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
         let mut disconnect = None;
         let mut found_player = None;
         for player_ref in self.players.iter_mut() {
-            let uid = player_ref.get_mut().getid();
+            let uid = player_ref.get_mut().get_id();
             if uid == action.player() {
                 found_player = Some(player_ref.get_mut());
             }
         }
         if let Some(player) = found_player {
-            let id = player.getid();
+            let id = player.get_id();
             let action = action.action();
             disconnect = match player.send_blocking(action) {
                 Err(PlayerError::Disconnected) => Some(id),
@@ -294,7 +292,11 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
         match action {
             Ok(action) => {
                 if action.action().requires_response() {
-                    println!("Some event {:?}, requires response {:?}",action,action.action().requires_response());
+                    println!(
+                        "Some event {:?}, requires response {:?}",
+                        action,
+                        action.action().requires_response()
+                    );
                     event_queue.push(action);
                 }
             }
@@ -320,7 +322,7 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
                 let uid = action.player();
                 match rules.register_response(&players, (event, &action)) {
                     Ok(val) => {
-                        println!("Rule engine responded with {:?}",val);
+                        println!("Rule engine responded with {:?}", val);
                     }
                     // If the game did not expect that response the request is not handled and is therefore re enqueued
                     // but at the start of the queue since it is a new request

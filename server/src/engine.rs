@@ -1,4 +1,3 @@
-pub mod drawable;
 pub mod event;
 pub mod player;
 pub mod rules;
@@ -39,12 +38,12 @@ async fn tcp_listener(listener: TcpListener, tx: mpsc::Sender<Cmd>) {
 }
 pub async fn manager<
     Rules: RuleEngine + Instantiable + Send + 'static,
-    const BUFFERSIZE: usize,
+    const BUFFER_SIZE: usize,
     const CAPACITY: usize,
 >(
     listener: TcpListener,
 ) where
-    Lobby<Rules, CAPACITY>: PlayerFromTcpStream<CAPACITY, BUFFERSIZE, Rules::Event>,
+    Lobby<Rules, CAPACITY>: PlayerFromTcpStream<CAPACITY, BUFFER_SIZE, Rules::Event>,
 {
     println!("In manager");
     let (tx, rx) = mpsc::channel::<Cmd>(32);
@@ -97,10 +96,10 @@ async fn monitor<Event: GameEvent, T: session::LobbyInterface<Event>>(
 
 fn add_player<
     Event: GameEvent + 'static,
-    const BUFFERSIZE: usize,
+    const BUFFER_SIZE: usize,
     const CAPACITY: usize,
     T: LobbyInterface<Event>
-        + PlayerFromTcpStream<BUFFERSIZE, CAPACITY, Event>
+        + PlayerFromTcpStream<BUFFER_SIZE, CAPACITY, Event>
         + 'static
         + std::marker::Send,
 >(
@@ -124,9 +123,9 @@ fn add_player<
 async fn tcp_manager<
     Event: GameEvent + 'static,
     const CAPACITY: usize,
-    const BUFFERSIZE: usize,
+    const BUFFER_SIZE: usize,
     T: LobbyInterface<Event>
-        + PlayerFromTcpStream<CAPACITY, BUFFERSIZE, Event>
+        + PlayerFromTcpStream<CAPACITY, BUFFER_SIZE, Event>
         + 'static
         + std::marker::Send,
 >(

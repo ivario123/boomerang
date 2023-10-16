@@ -17,7 +17,7 @@ pub struct WriteEnabled {}
 impl TcpPlayerState for Whole {}
 impl TcpPlayerState for WriteEnabled {}
 
-// A player can fully be reprsented by a tcp stream, we just need to add functionality for it
+// A player can fully be represented by a tcp stream, we just need to add functionality for it
 #[derive(Debug)]
 pub struct TcpPlayer<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEvent> {
     pub mutex: Mutex<PhantomData<STATE>>,
@@ -29,7 +29,7 @@ pub struct TcpPlayer<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEv
 }
 
 #[derive(Debug)]
-pub struct TcpReciver<const CAPACITY: usize, Event: GameEvent> {
+pub struct TcpReceiver<const CAPACITY: usize, Event: GameEvent> {
     reader: OwnedReadHalf,
     id: usize,
     sender: Sender<Message<Event>>,
@@ -47,11 +47,11 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEvent> Player<Even
             Err(_) => return Err(PlayerError::SendMessageError),
         };
         match self.writer.try_write(json.as_bytes()) {
-            Ok(n) => Ok(()),
+            Ok(_) => Ok(()),
             Err(_) => Err(PlayerError::SendMessageError),
         }
     }
-    fn getid(&self) -> usize {
+    fn get_id(&self) -> usize {
         return self.id.clone();
     }
     fn identifier(&self) -> String {
@@ -69,12 +69,12 @@ impl EqPlayer for std::net::TcpStream {
     }
 }
 
-impl<Event: GameEvent, const CAPACITY: usize, const BUFFERSIZE: usize>
-    super::Splittable<Event, BUFFERSIZE> for TcpPlayer<CAPACITY, Whole, Event>
+impl<Event: GameEvent, const CAPACITY: usize, const BUFFER_SIZE: usize>
+    super::Split<Event, BUFFER_SIZE> for TcpPlayer<CAPACITY, Whole, Event>
 {
     type WritePart = TcpPlayer<CAPACITY, WriteEnabled, Event>;
-    type ReadPart = TcpReciver<BUFFERSIZE, Event>;
-    fn split(self) -> (Self::WritePart, TcpReciver<BUFFERSIZE, Event>) {
+    type ReadPart = TcpReceiver<BUFFER_SIZE, Event>;
+    fn split(self) -> (Self::WritePart, TcpReceiver<BUFFER_SIZE, Event>) {
         let Some(reader) = self.reader else {
             unreachable!()
         };
@@ -91,7 +91,7 @@ impl<Event: GameEvent, const CAPACITY: usize, const BUFFERSIZE: usize>
                 id: self.id,
                 state: std::marker::PhantomData,
             },
-            TcpReciver {
+            TcpReceiver {
                 reader,
                 id,
                 sender: sender,
@@ -137,7 +137,7 @@ impl<const CAPACITY: usize, Event: GameEvent, State: TcpPlayerState> Id
 
 #[async_trait]
 impl<const CAPACITY: usize, Event: GameEvent + Sync> crate::engine::player::Receiver<Event>
-    for TcpReciver<CAPACITY, Event>
+    for TcpReceiver<CAPACITY, Event>
 {
     fn subscribe(&mut self) -> Result<Receiver<Message<Event>>, PlayerError> {
         let sender = &self.sender;

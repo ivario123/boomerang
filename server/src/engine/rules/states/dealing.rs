@@ -2,11 +2,10 @@ use std::marker::PhantomData;
 
 use crate::engine::rules::{GameMetaData, Action, New, Event, Error, Received};
 
-use super::{Scoring, GameState, DiscardCard, DealingCards};
+use super::{GameState, DiscardCard, DealingCards};
 
 
 impl DealingCards {
-    const MAXCARDS: usize = 7;
     pub fn new(players: &[usize]) -> Self {
         Self {
             pending_actions: Vec::with_capacity(players.len()),
@@ -59,7 +58,7 @@ impl GameState for DealingCards {
 
     fn register_message(
         &mut self,
-        action: &Action<New, Event>,
+        _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         // Check if that player has an outstanding action
         todo!()
@@ -73,8 +72,8 @@ impl GameState for DealingCards {
             response,
             Action {
                 player,
-                status,
                 action,
+                ..
             },
         ) = action;
         let mut pending = None;
@@ -92,7 +91,7 @@ impl GameState for DealingCards {
         };
 
         match action {
-            Event::Deal(card) => {
+            Event::Deal(_card) => {
                 // Here we should have an ok of some sort
                 match response {
                     Event::Accept => {

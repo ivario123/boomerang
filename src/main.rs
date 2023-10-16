@@ -1,5 +1,4 @@
-use server::engine::rules::{AustraliaCard, Event};
-use std::io::{Read, Write};
+use server::engine::rules::{cards::AustraliaCard, Event};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -29,7 +28,7 @@ async fn main() {
     let mut hand = Vec::<AustraliaCard>::new();
     loop {
         let event = read();
-        println!("Recived : {:?}", event);
+        println!("Received : {:?}", event);
         match event {
             Event::ReadyCheck => {
                 send(Event::Accept);
@@ -54,8 +53,8 @@ async fn main() {
                 send(Event::Show(0));
                 println!("Responded with {:?}", Event::Show(0));
             }
-            Event::ShowPile(idx,cards) => {
-                println!("Player {:?} is showing {:?}", idx,cards);
+            Event::ShowPile(idx, cards) => {
+                println!("Player {:?} is showing {:?}", idx, cards);
             }
             Event::ReassignHand(new_hand) => {
                 println!("Replacing {:?} with {:?}", hand, new_hand);

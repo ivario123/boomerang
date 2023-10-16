@@ -1,5 +1,5 @@
-use rand::{thread_rng, seq::IteratorRandom};
-use serde::{Serialize,Deserialize};
+use rand::{seq::IteratorRandom, thread_rng};
+use serde::{Deserialize, Serialize};
 
 pub trait Card: std::fmt::Debug {
     fn to_char(&self) -> char;

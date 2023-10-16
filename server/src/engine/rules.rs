@@ -1,15 +1,12 @@
-use std::{cell::RefCell, marker::PhantomData};
+use std::marker::PhantomData;
 
-use self::{states::{DealingCards, WaitingForPlayers, GameState}, cards::{AustraliaCard, AustralianActivities, AustraliaDeck}};
-
-use super::{
-    event::{self, BackendEvent, GameEvent},
-    player::{self, Player},
-    session::Session,
+use self::{
+    cards::{AustraliaCard, AustraliaDeck, AustralianActivities},
+    states::{DealingCards, GameState, WaitingForPlayers},
 };
-use rand::prelude::*;
+
+use super::event::{self, BackendEvent, GameEvent};
 use serde::{Deserialize, Serialize};
-use std::iter::FromIterator;
 
 pub mod states;
 pub trait ActionStatus {}
@@ -45,6 +42,7 @@ macro_rules! transition_of_status {
     ($($status1:ident -> $status2:ident)+) => {
         $(
             impl<Event:GameEvent>  Action<$status1,Event> {
+                #[allow(dead_code)]
                 pub fn transition(self) -> Action<$status2,Event>{
                     Action::<$status2,Event>{
                         player:self.player,
@@ -54,6 +52,7 @@ macro_rules! transition_of_status {
                 }
             }
             impl<Event:GameEvent>  Action<$status2,Event> {
+                #[allow(dead_code)]
                 pub fn degrade(self) -> Action<$status1,Event>{
                     Action::<$status1,Event>{
                         player:self.player,
@@ -194,7 +193,8 @@ pub struct AustraliaPlayer {
     hand: Vec<AustraliaCard>,
     discard_pile: Vec<AustraliaCard>,
     show_pile: Vec<AustraliaCard>,
-    scorable_activity: Vec<AustralianActivities>,
+    un_scored_activity: Vec<AustralianActivities>,
+    #[allow(dead_code)]
     activity_scores: Vec<(AustralianActivities, usize)>,
 }
 #[derive(Debug, Clone)]
@@ -209,7 +209,7 @@ impl AustraliaPlayer {
             hand: Vec::new(),
             discard_pile: Vec::new(),
             show_pile: Vec::new(),
-            scorable_activity: AustralianActivities::to_vec(),
+            un_scored_activity: AustralianActivities::to_vec(),
             activity_scores: Vec::new(),
         }
     }
@@ -235,7 +235,7 @@ impl AustraliaPlayer {
 }
 
 impl GameMetaData {
-    const MAXCARDS: usize = 7;
+    const MAX_CARDS: usize = 7;
     fn new(players: &[usize]) -> Self {
         let mut players_vec = Vec::with_capacity(players.len());
         for player in players {
@@ -246,14 +246,11 @@ impl GameMetaData {
             players: players_vec,
         }
     }
-    fn hands<'a>(&'a mut self) -> &'a mut Vec<AustraliaPlayer> {
-        &mut self.players
-    }
     fn draft(&mut self) -> (bool, Vec<Action<New, Event>>) {
         let mut done = true;
         let mut actions = Vec::new();
         for player in self.players.iter_mut() {
-            if player.hand.len() == 7 {
+            if player.hand.len() == Self::MAX_CARDS {
                 continue;
             }
             done = false;
@@ -310,13 +307,12 @@ impl GameMetaData {
     }
 }
 
-
-pub struct Austrailia<const CAPACITY: usize, const MIN_PLAYERS: usize> {
+pub struct Australia<const CAPACITY: usize, const MIN_PLAYERS: usize> {
     state: Box<dyn GameState>,
 }
 
 impl<const CAPACITY: usize, const MIN_PLAYERS: usize> RuleEngine
-    for Austrailia<CAPACITY, MIN_PLAYERS>
+    for Australia<CAPACITY, MIN_PLAYERS>
 {
     type Event = Event;
     fn get_next_action(
@@ -333,7 +329,7 @@ impl<const CAPACITY: usize, const MIN_PLAYERS: usize> RuleEngine
 
     fn register_response(
         &mut self,
-        players: &Vec<usize>,
+        _: &Vec<usize>,
         response: (Self::Event, &Action<Received, Self::Event>),
     ) -> Result<Action<Completed, Self::Event>, Error> {
         let completed_action = Action::<Completed, Event> {
@@ -356,17 +352,17 @@ impl<const CAPACITY: usize, const MIN_PLAYERS: usize> RuleEngine
 
     fn register_message(
         &mut self,
-        players: &Vec<usize>,
-        message: &Action<New, Self::Event>,
+        _players: &Vec<usize>,
+        _message: &Action<New, Self::Event>,
     ) -> Result<(), Error> {
         return Err(Error::UnexpectedMessage);
     }
 }
 impl<const CAPACITY: usize, const MIN_PLAYERS: usize> Instantiable
-    for Austrailia<CAPACITY, MIN_PLAYERS>
+    for Australia<CAPACITY, MIN_PLAYERS>
 {
     fn new() -> Self {
-        Austrailia {
+        Australia {
             state: Box::new(WaitingForPlayers::<DealingCards>::new(None)),
         }
     }

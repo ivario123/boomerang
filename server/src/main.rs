@@ -3,7 +3,7 @@ use tokio;
 
 use std::net::TcpListener;
 
-use crate::engine::rules::Austrailia;
+use crate::engine::rules::Australia;
 
 #[tokio::main]
 async fn main() {
@@ -14,7 +14,7 @@ async fn main() {
             panic!();
         }
     };
-    type Rules = Austrailia<4, 2>;
+    type Rules = Australia<4, 2>;
     engine::manager::<Rules, 4, 4>(listener).await;
     println!("Hello world");
     loop {}

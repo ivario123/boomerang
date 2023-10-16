@@ -42,7 +42,7 @@ impl GameState for Scoring {
             for player in &mut self.state.players {
                 actions.push(Action {
                     player: player.id as usize,
-                    action: Event::ScoreActivityQuery(player.scorable_activity.clone()),
+                    action: Event::ScoreActivityQuery(player.un_scored_activity.clone()),
                     status: PhantomData,
                 });
                 self.pending.push(player.id);
@@ -56,14 +56,14 @@ impl GameState for Scoring {
 
     fn register_message(
         &mut self,
-        action: &Action<New, Event>,
+        _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         todo!()
     }
 
     fn register_response(
         &mut self,
-        action: (Event, &Action<Received, Event>),
+        _action: (Event, &Action<Received, Event>),
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         todo!()
     }
