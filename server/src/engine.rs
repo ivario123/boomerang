@@ -1,7 +1,5 @@
-pub mod card;
 pub mod drawable;
 pub mod event;
-pub mod hand;
 pub mod player;
 pub mod rules;
 pub mod session;
@@ -9,19 +7,13 @@ use crate::engine::session::Lobby;
 
 use self::event::GameEvent;
 use self::player::Message;
-use self::rules::Instantiable;
-use self::rules::RuleEngine;
-use self::session::LobbyInterface;
-use self::session::PlayerFromTcpStream;
-use self::session::SessionError;
-use player::TcpPlayer;
+use self::rules::{Instantiable, RuleEngine};
+use self::session::{LobbyInterface, PlayerFromTcpStream, SessionError};
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::{net::TcpListener, net::TcpStream};
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, mpsc, Mutex};
 
-use tokio::sync::broadcast;
-use tokio::sync::mpsc;
 #[derive(Debug)]
 enum Cmd {
     Add { user: TcpStream },
@@ -45,7 +37,6 @@ async fn tcp_listener(listener: TcpListener, tx: mpsc::Sender<Cmd>) {
         }
     }
 }
-type DefaultLobby = Lobby<rules::Austrailia<4>, 4>;
 pub async fn manager<
     Rules: RuleEngine + Instantiable + Send + 'static,
     const BUFFERSIZE: usize,
@@ -97,7 +88,7 @@ async fn monitor<Event: GameEvent, T: session::LobbyInterface<Event>>(
                     },
                 }
             }
-            e => {}
+            _e => {}
         };
     }
     println!("Closed");
@@ -105,7 +96,7 @@ async fn monitor<Event: GameEvent, T: session::LobbyInterface<Event>>(
 }
 
 fn add_player<
-    Event: GameEvent+'static,
+    Event: GameEvent + 'static,
     const BUFFERSIZE: usize,
     const CAPACITY: usize,
     T: LobbyInterface<Event>
@@ -127,9 +118,6 @@ fn add_player<
         }
         Err(e) => {
             println!("{:?}", e);
-        }
-        _ => {
-            // No new player to add
         }
     }
 }

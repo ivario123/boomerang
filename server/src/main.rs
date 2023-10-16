@@ -14,8 +14,8 @@ async fn main() {
             panic!();
         }
     };
-    type rules = Austrailia<4>;
-    engine::manager::<rules,4,4>(listener).await;
+    type Rules = Austrailia<4, 2>;
+    engine::manager::<Rules, 4, 4>(listener).await;
     println!("Hello world");
     loop {}
 }

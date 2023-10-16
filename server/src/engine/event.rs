@@ -1,16 +1,17 @@
-use crate::engine::card::AustraliaCards;
-
-use super::card::Card;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy)]
-pub struct SendableCard<C: Card> {
-    card: C,
-}
-
 pub trait GameEvent:
-    Clone + Serialize + for<'a> Deserialize<'a> + PartialEq + From<BackendEvent> + Into<Vec<u8>> + std::fmt::Debug + Send + Sync
+    Clone
+    + Serialize
+    + for<'a> Deserialize<'a>
+    + PartialEq
+    + From<BackendEvent>
+    + Into<Vec<u8>>
+    + std::fmt::Debug
+    + Send
+    + Sync
 {
+    fn requires_response(&self) -> bool;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -20,7 +21,11 @@ pub enum BackendEvent {
     UnexpectedMessage,
 }
 
-impl GameEvent for BackendEvent {}
+impl GameEvent for BackendEvent {
+    fn requires_response(&self) -> bool {
+        false
+    }
+}
 
 /// Enumerates all of the possible errors for the [`Event`] enum
 #[derive(Debug)]

@@ -42,20 +42,13 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEvent> Player<Even
 {
     async fn send(&mut self, event: Event) -> Result<(), PlayerError> {
         let _ = self.mutex.lock().await;
-        println!("{:?} sending {:?}", self, event);
         let json = match serde_json::to_string(&event) {
             Ok(val) => val,
             Err(_) => return Err(PlayerError::SendMessageError),
         };
         match self.writer.try_write(json.as_bytes()) {
-            Ok(n) => {
-                println!("Wrote {:?} bytes", n);
-                Ok(())
-            }
-            Err(_) => {
-                println!("Failed to send {:?} to {:?}", event, self);
-                Err(PlayerError::SendMessageError)
-            }
+            Ok(n) => Ok(()),
+            Err(_) => Err(PlayerError::SendMessageError),
         }
     }
     fn getid(&self) -> usize {
@@ -198,7 +191,6 @@ impl<const CAPACITY: usize, Event: GameEvent + Sync> crate::engine::player::Rece
                     };
                     self.sender.send(msg).unwrap();
                 }
-                println!("Sent to manager");
             }
         }
     }
