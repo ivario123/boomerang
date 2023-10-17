@@ -3,8 +3,10 @@ pub mod states;
 use serde::{Deserialize, Serialize};
 use server::engine::{
     event::{BackendEvent, GameEvent},
-    rules::{Action, Completed, Error, Received, RuleEngine, Instantiable,New},
+    rules::{Action, Completed, Error, Instantiable, New, Received, RuleEngine},
 };
+
+use crate::australia::mainpage::CardArea;
 
 use self::{
     cards::{AustraliaCard, AustraliaDeck, AustralianActivities},
@@ -29,8 +31,21 @@ pub enum Event {
     ScoreActivity(Option<AustralianActivities>),
     ReassignHand(Vec<AustraliaCard>),
     WaitingForPlayers,
+    WaitingForPlayer,
     Connected(u8),
     UnexpectedMessage,
+    Resend,
+}
+impl TryInto<BackendEvent> for Event {
+    type Error = ();
+    fn try_into(self) -> Result<BackendEvent, Self::Error> {
+        match self {
+            Self::Connected(uid) => Ok(BackendEvent::Connected(uid)),
+            Self::UnexpectedMessage => Ok(BackendEvent::UnexpectedMessage),
+            Self::Resend => Ok(BackendEvent::Resend),
+            _ => Err(()),
+        }
+    }
 }
 
 impl Into<Vec<u8>> for Event {
@@ -43,6 +58,7 @@ impl From<BackendEvent> for Event {
         match value {
             BackendEvent::Connected(uid) => Self::Connected(uid),
             BackendEvent::UnexpectedMessage => Self::UnexpectedMessage,
+            BackendEvent::Resend => Event::Resend,
         }
     }
 }
@@ -71,6 +87,7 @@ pub struct AustraliaPlayer {
     un_scored_activity: Vec<AustralianActivities>,
     #[allow(dead_code)]
     activity_scores: Vec<(AustralianActivities, usize)>,
+    card_ptr: usize,
 }
 #[derive(Debug, Clone)]
 pub struct GameMetaData {
@@ -86,15 +103,17 @@ impl AustraliaPlayer {
             show_pile: Vec::new(),
             un_scored_activity: AustralianActivities::to_vec(),
             activity_scores: Vec::new(),
+            card_ptr: 0,
         }
     }
-    fn discard(&mut self, idx: &usize) -> Result<(), Error> {
+    fn discard(&mut self, idx: &usize) -> Result<AustraliaCard, Error> {
         if *idx >= self.hand.len() {
             return Err(Error::NoSuchCard);
         }
         let card = self.hand.remove(*idx);
-        self.discard_pile.push(card);
-        Ok(())
+        self.discard_pile.push(card.clone());
+        self.decrement();
+        Ok(card)
     }
     fn show(&mut self, idx: &usize) -> Result<(), Error> {
         if *idx >= self.hand.len() {
@@ -106,6 +125,65 @@ impl AustraliaPlayer {
     }
     fn hand_empty(&self) -> bool {
         self.hand.len() == 0
+    }
+
+    pub fn card_ptr(&mut self) -> &mut usize {
+        &mut self.card_ptr
+    }
+
+    pub fn get_cards<const COUNT: usize>(
+        &self,
+        start: usize,
+    ) -> (&[AustraliaCard], (usize, usize)) {
+        if self.hand_empty() {
+            return (&[], (0, 0));
+        }
+        match start > self.hand.len() - 1 {
+            true => self.hand.len() - 1,
+            false => start,
+        };
+        let end = match (start + COUNT) > self.hand.len() {
+            false => start + COUNT,
+            true => self.hand.len(),
+        };
+        (&self.hand[start..end], (end, self.hand.len()))
+    }
+    pub fn hand_size(&self) -> usize {
+        self.hand.len()
+    }
+}
+
+impl tui::ui::UiElement for AustraliaPlayer {
+    /// This should never be called
+    fn new() -> Self {
+        Self {
+            id: 0,
+            hand: Vec::new(),
+            discard_pile: Vec::new(),
+            show_pile: Vec::new(),
+            un_scored_activity: AustralianActivities::to_vec(),
+            activity_scores: Vec::new(),
+            card_ptr: 0,
+        }
+    }
+}
+
+impl tui::ui::Hand<AustraliaCard> for AustraliaPlayer {
+    fn get<const COUNT: usize>(&self, start: usize) -> (&[AustraliaCard], (usize, usize)) {
+        self.get_cards::<COUNT>(start)
+    }
+
+    fn count(&self) -> usize {
+        self.hand_size()
+    }
+
+    fn add_card(&mut self, card: AustraliaCard) {
+        if !self.hand.contains(&card) {
+            self.hand.push(card);
+        }
+    }
+    fn discard_card(&mut self, idx: usize) -> AustraliaCard {
+        self.hand.remove(idx)
     }
 }
 
@@ -145,7 +223,10 @@ impl GameMetaData {
             }
         }
         match selected_player {
-            Some(player) => player.discard(idx),
+            Some(player) => {
+                player.discard(idx)?;
+                Ok(())
+            }
             _ => return Err(Error::NoSuchCard),
         }
     }

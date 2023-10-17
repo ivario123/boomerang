@@ -21,6 +21,7 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        println!("In waiting state");
         let mut actions = Vec::new();
         // We need at least 2 players
         if players.len() < 2 {
@@ -35,7 +36,7 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
                 // players disconnected it might be another state
                 let state = std::mem::replace(&mut self.next_state, None);
                 return (
-                    tokio::time::Duration::from_secs(10),
+                    tokio::time::Duration::from_secs(4),
                     actions,
                     Some(match state {
                         Some(state) => state,
@@ -53,7 +54,7 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
                 }
             }
         }
-        return (tokio::time::Duration::from_secs(10), actions, None);
+        return (tokio::time::Duration::from_secs(4), actions, None);
     }
 
     fn register_message(

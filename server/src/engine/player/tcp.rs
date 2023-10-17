@@ -2,12 +2,15 @@ use super::{EqPlayer, Id, Message, New, Player, PlayerError};
 use crate::engine::event::GameEvent;
 use async_trait::async_trait;
 use std::marker::PhantomData;
-use tokio::net::{
-    tcp::{OwnedReadHalf, OwnedWriteHalf},
-    TcpStream,
-};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::sync::Mutex;
+use tokio::{
+    io::AsyncWriteExt,
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
+};
 pub trait TcpPlayerState: std::fmt::Debug + Send {}
 #[derive(Debug)]
 pub struct Whole {}
@@ -42,11 +45,11 @@ impl<const CAPACITY: usize, STATE: TcpPlayerState, Event: GameEvent> Player<Even
 {
     async fn send(&mut self, event: Event) -> Result<(), PlayerError> {
         let _ = self.mutex.lock().await;
-        let json = match serde_json::to_string(&event) {
-            Ok(val) => val,
-            Err(_) => return Err(PlayerError::SendMessageError),
-        };
-        match self.writer.try_write(json.as_bytes()) {
+        println!("Sending {:?}", event);
+        let mut json: Vec<u8> = event.into();
+        json.push(0);
+
+        match self.writer.try_write(&json) {
             Ok(_) => Ok(()),
             Err(_) => Err(PlayerError::SendMessageError),
         }

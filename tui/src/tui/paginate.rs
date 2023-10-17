@@ -13,7 +13,7 @@ impl<MainPage: TuiPage, MapPage: TuiPage> EventApi for Paginate<MainPage, MapPag
     fn handle_input(&mut self, control: crate::tui::controls::Controls) {
         match control {
             crate::tui::controls::Controls::Tab => self.increment(),
-            crate::tui::controls::Controls::Exit => {},
+            crate::tui::controls::Controls::Exit => {}
             _ => {
                 match self.2 {
                     0 => self.0.handle_input(control),
@@ -59,5 +59,9 @@ impl<MainPage: TuiPage, MapPage: TuiPage> Paginate<MainPage, MapPage> {
             1 => self.1.draw(frame, block),
             _ => unreachable!(),
         };
+    }
+
+    pub fn main_page(&mut self) -> &mut MainPage {
+        &mut self.0
     }
 }

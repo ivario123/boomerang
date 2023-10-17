@@ -1,16 +1,20 @@
+use std::marker::PhantomData;
+
 use ratatui::{
     prelude::{Backend, Rect},
     symbols::Marker,
     widgets::canvas::Canvas,
     Frame,
 };
+use tokio::sync::Mutex;
 
-use crate::{
+use tui::{
     maps::{self, sites::Region, Map},
     tui::{controls::EventApi, TuiPage},
 };
 
 pub struct DefaultTuiMap<M: maps::Map> {
+    pub lock: Mutex<PhantomData<M>>,
     map: M,
     title: String,
 }
@@ -20,12 +24,13 @@ impl<M: maps::Map> DefaultTuiMap<M> {
         Self {
             map: M::default(),
             title: "Map".to_owned(),
+            lock: Mutex::new(PhantomData),
         }
     }
 }
 
 impl<M: maps::Map> EventApi for DefaultTuiMap<M> {
-    fn handle_input(&mut self, control: crate::tui::controls::Controls) {
+    fn handle_input(&mut self, control: tui::tui::controls::Controls) {
         // This should be able to assign scores and things I guess
     }
 }

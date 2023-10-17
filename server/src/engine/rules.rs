@@ -4,70 +4,16 @@ use super::event::{self, GameEvent};
 
 pub trait ActionStatus {}
 
-macro_rules! impl_status {
-    (New) => {
-        impl<Event:GameEvent> Action<New,Event>{
-            fn from_action<Status:ActionStatus>(action:Action<Status,Event>) -> Self{
-                Self{
-                    player:action.player,
-                    action:action.action,
-                    status:PhantomData
-                }
-            }
-        }
-    };
-    ($status:ident) => {
-        impl<Event:GameEvent> Into<Action<New,Event>> for Action<$status,Event>{
-            fn into(self) -> Action<New,Event> {
-                Action::<New,Event>::from_action(self)
-            }
-        }
-    };
-    (all $($status:ident)+) => {
-        $(
-            impl ActionStatus for $status {}
-            impl_status!($status);
-        )+
-    };
-}
-macro_rules! transition_of_status {
-    ($($status1:ident -> $status2:ident)+) => {
-        $(
-            impl<Event:GameEvent>  Action<$status1,Event> {
-                #[allow(dead_code)]
-                pub fn transition(self) -> Action<$status2,Event>{
-                    Action::<$status2,Event>{
-                        player:self.player,
-                        action:self.action,
-                        status:PhantomData
-                    }
-                }
-            }
-            impl<Event:GameEvent>  Action<$status2,Event> {
-                #[allow(dead_code)]
-                pub fn degrade(self) -> Action<$status1,Event>{
-                    Action::<$status1,Event>{
-                        player:self.player,
-                        action:self.action,
-                        status:PhantomData
-                    }
-                }
-            }
-        )+
-    };
-}
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct New {}
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Sent {}
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Received {}
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Completed {}
-impl_status!(all New Sent Received Completed);
-transition_of_status!(New -> Sent Sent -> Received Received -> Completed);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Action<Status: ActionStatus, Event: GameEvent> {
     player: usize,
     action: Event,
@@ -127,3 +73,58 @@ pub trait RuleEngine {
 pub trait Instantiable {
     fn new() -> Self;
 }
+
+macro_rules! impl_status {
+    (New) => {
+        impl<Event:GameEvent> Action<New,Event>{
+            fn from_action<Status:ActionStatus>(action:Action<Status,Event>) -> Self{
+                Self{
+                    player:action.player,
+                    action:action.action,
+                    status:PhantomData
+                }
+            }
+        }
+    };
+    ($status:ident) => {
+        impl<Event:GameEvent> Into<Action<New,Event>> for Action<$status,Event>{
+            fn into(self) -> Action<New,Event> {
+                Action::<New,Event>::from_action(self)
+            }
+        }
+    };
+    (all $($status:ident)+) => {
+        $(
+            impl ActionStatus for $status {}
+            impl_status!($status);
+        )+
+    };
+}
+macro_rules! transition_of_status {
+    ($($status1:ident -> $status2:ident)+) => {
+        $(
+            impl<Event:GameEvent>  Action<$status1,Event> {
+                #[allow(dead_code)]
+                pub fn transition(self) -> Action<$status2,Event>{
+                    Action::<$status2,Event>{
+                        player:self.player,
+                        action:self.action,
+                        status:PhantomData
+                    }
+                }
+            }
+            impl<Event:GameEvent>  Action<$status2,Event> {
+                #[allow(dead_code)]
+                pub fn degrade(self) -> Action<$status1,Event>{
+                    Action::<$status1,Event>{
+                        player:self.player,
+                        action:self.action,
+                        status:PhantomData
+                    }
+                }
+            }
+        )+
+    };
+}
+impl_status!(all New Sent Received Completed);
+transition_of_status!(New -> Sent Sent -> Received Received -> Completed);

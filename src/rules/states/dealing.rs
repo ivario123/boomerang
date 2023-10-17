@@ -24,6 +24,7 @@ impl GameState for DealingCards {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        println!("In dealing state");
         let mut actions = Vec::new();
 
         // If we have any out standing messages await these
@@ -34,7 +35,7 @@ impl GameState for DealingCards {
                 }
             }
             // Sleep server for a long time since there is noting to do
-            return (tokio::time::Duration::from_secs(2), actions, None);
+            return (tokio::time::Duration::from_secs(1), actions, None);
         }
         let (done, actions) = self.state.draft();
         for action in &actions {

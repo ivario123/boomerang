@@ -6,6 +6,7 @@ pub trait GameEvent:
     + for<'a> Deserialize<'a>
     + PartialEq
     + From<BackendEvent>
+    + TryInto<BackendEvent>
     + Into<Vec<u8>>
     + std::fmt::Debug
     + Send
@@ -19,6 +20,7 @@ pub trait GameEvent:
 pub enum BackendEvent {
     Connected(u8),
     UnexpectedMessage,
+    Resend,
 }
 
 impl GameEvent for BackendEvent {

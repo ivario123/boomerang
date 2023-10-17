@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub trait Card: std::fmt::Debug {
     fn to_char(&self) -> char;
+    fn name(&self) -> &str;
 }
 
 macro_rules! activities {
@@ -33,6 +34,11 @@ pub struct AustraliaDeck {
     deck: Vec<AustraliaCard>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AustraliaHand {
+    deck: Vec<AustraliaCard>,
+}
+
 impl AustraliaDeck {
     pub fn draft(&mut self) -> AustraliaCard {
         let idx = [0..self.deck.len()];
@@ -40,9 +46,25 @@ impl AustraliaDeck {
         self.deck.remove(drafted)
     }
 }
+
+impl tui::ui::UiElement for AustraliaCard {
+    /// This should never be called
+    fn new() -> Self {
+        panic!("Card is not to be instantiated like this")
+    }
+}
+impl tui::ui::Card for AustraliaCard {
+    fn get_name(&self) -> &str {
+        self.name()
+    }
+}
+
+
+
 macro_rules! card {
     ($(
         $name:ident : {
+            name : $str_rpr:literal
             site : $site:literal
             region : $region:literal
             $(collection : $collection:literal)?
@@ -64,6 +86,15 @@ macro_rules! card {
                     )+
                 }
             }
+
+            fn name(&self) -> &str{
+                match self{
+                    $(
+                        AustraliaCard::$name => $str_rpr,
+                    )+
+                }
+
+            }
         }
         impl Default for AustraliaDeck{
             fn default() -> Self{
@@ -76,6 +107,7 @@ macro_rules! card {
 }
 card! {
     TheBungleBungles: {
+        name: "The Bungle Bungles"
         site: 'A'
         region: "Western Australia"
         collection: "Leaves"
@@ -83,6 +115,7 @@ card! {
     }
 
     ThePinnacles: {
+        name: "The Pinnacles"
         site: 'B'
         region: "Western Australia"
         animal: "Kangaroos"
@@ -90,6 +123,7 @@ card! {
     }
 
     MargaretRiver: {
+        name: "Margaret River"
         site: 'C'
         region: "Western Australia"
         collection: "Shells"
@@ -97,6 +131,7 @@ card! {
     }
 
     KalbarriNationalPark: {
+        name: "Kalbarri National Park"
         site: 'D'
         region: "Western Australia"
         collection: "Wildflowers"
@@ -104,6 +139,7 @@ card! {
     }
 
     Uluru: {
+        name: "Uluru"
         site: 'E'
         region: "Northern Territory"
         animal: "Emus"
@@ -111,6 +147,7 @@ card! {
     }
 
     KakaduNationalPark: {
+        name: "Kakadu National Park"
         site: 'F'
         region: "Northern Territory"
         animal: "Wombats"
@@ -118,6 +155,7 @@ card! {
     }
 
     NitmilukNationalPark: {
+        name: "Nitmiluk National Park"
         site: 'G'
         region: "Northern Territory"
         collection: "Shells"
@@ -125,6 +163,7 @@ card! {
     }
 
     KingsCanyon: {
+        name: "King's Canyon"
         site: 'H'
         region: "Northern Territory"
         animal: "Koalas"
@@ -132,6 +171,7 @@ card! {
     }
 
     TheGreatBarrierReef: {
+        name: "The Great Barrier Reef"
         site: 'I'
         region: "Queensland"
         collection: "Wildflowers"
@@ -139,6 +179,7 @@ card! {
     }
 
     TheWhitsundays: {
+        name: "The Whitsundays"
         site: 'J'
         region: "Queensland"
         animal: "Kangaroos"
@@ -146,6 +187,7 @@ card! {
     }
 
     DaintreeRainforest: {
+        name: "Daintree Rainforest"
         site: 'K'
         region: "Queensland"
         collection: "Souvenirs"
@@ -153,6 +195,7 @@ card! {
     }
 
     SurfersParadise: {
+        name: "Surfers Paradise"
         site: 'L'
         region: "Queensland"
         collection: "Wildflowers"
@@ -160,6 +203,7 @@ card! {
     }
 
     BarossaValley: {
+        name: "Barossa Valley"
         site: 'M'
         region: "South Australia"
         animal: "Koalas"
@@ -167,6 +211,7 @@ card! {
     }
 
     LakeEyre: {
+        name: "Lake Eyre"
         site: 'N'
         region: "South Australia"
         animal: "Emus"
@@ -174,6 +219,7 @@ card! {
     }
 
     KangarooIsland: {
+        name: "Kangaroo Island"
         site: 'O'
         region: "South Australia"
         animal: "Kangaroos"
@@ -181,6 +227,7 @@ card! {
     }
 
     MountGambier: {
+        name: "Mount Gambier"
         site: 'P'
         region: "South Australia"
         collection: "Wildflowers"
@@ -188,12 +235,14 @@ card! {
     }
 
     BlueMountains: {
+        name: "Blue Mountains"
         site: 'Q'
         region: "New South Whales"
         activity: IndigenousCulture
     }
 
     SydneyHarbour: {
+        name:  "Sydney Harbour"
         site: 'R'
         region: "New South Whales"
         animal: "Emus"
@@ -201,12 +250,14 @@ card! {
     }
 
     BondiBeach: {
+        name: "Bondi Beach"
         site: 'S'
         region: "New South Whales"
         activity: Swimming
     }
 
     HunterValley: {
+        name: "Hunter Valley"
         site: 'T'
         region: "New South Whales"
         animal: "Emus"
@@ -214,6 +265,7 @@ card! {
     }
 
     Melbourne: {
+        name: "Melbourne"
         site: 'U'
         region: "Victoria"
         animal: "Wombats"
@@ -221,6 +273,7 @@ card! {
     }
 
     TheMCG: {
+        name: "The MCG"
         site: 'V'
         region: "Victoria"
         collection: "Leaves"
@@ -228,6 +281,7 @@ card! {
     }
 
     TwelveApostles: {
+        name: "Twelve Apostles"
         site: 'W'
         region: "Victoria"
         collection: "Shells"
@@ -235,12 +289,14 @@ card! {
     }
 
     RoyalExhibitionBuilding: {
+        name: "Royal Exhibition Building"
         site: 'X'
         region: "Victoria"
         collection: "Leaves"
     }
 
     SalamancaMarkets: {
+        name: "Salamanca Markets"
         site: 'Y'
         region: "Tasmania"
         collection: "Leaves"
@@ -248,6 +304,7 @@ card! {
     }
 
     MountWellington: {
+        name: "Mount Wellington"
         site: 'Z'
         region: "Tasmania"
         animal: "Koalas"
@@ -255,6 +312,7 @@ card! {
     }
 
     PortArthur: {
+        name: "Port Arthur"
         site: '*'
         region: "Tasmania"
         collection: "Leaves"
@@ -262,6 +320,7 @@ card! {
     }
 
     Richmond: {
+        name: "Richmond"
         site: '-'
         region: "Tasmania"
         animal: "Kangaroos"

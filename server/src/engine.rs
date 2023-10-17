@@ -70,6 +70,7 @@ async fn monitor<Event: GameEvent, T: session::LobbyInterface<Event>>(
 ) {
     //println!("In monitor for {:?}", rx.resubscribe());
     loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         match rx.try_recv() {
             Ok(message) => {
                 println!("{:?}", message);

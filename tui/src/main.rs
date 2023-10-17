@@ -3,7 +3,7 @@ use tokio::sync::Mutex;
 use tui::default::*;
 use tui::Tui;
 
-use crate::maps::boomerang_australia::*;
+use tui::maps::boomerang_australia::*;
 use crate::ui::Ui;
 
 pub mod maps;
