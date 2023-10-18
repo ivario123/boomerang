@@ -23,6 +23,8 @@ use tokio::{
     sync::broadcast::{self, Receiver, Sender},
     time::Instant,
 };
+use tui::tui::popup::info::Info;
+use tui::tui::popup::select::Select;
 use tui::{
     maps::boomerang_australia::Map,
     tui::{Tui, TuiMonitor},
@@ -51,7 +53,7 @@ struct Args {
 }
 
 type TuiDefaults =
-    Tui<DefaultMainPage<AustraliaCard, AustraliaPlayer>, mappage::DefaultTuiMap<Map>>;
+    Tui<DefaultMainPage<AustraliaCard, AustraliaPlayer>, mappage::DefaultTuiMap<Map>, Info, Select>;
 #[async_recursion]
 async fn read_event(mut read_part: OwnedReadHalf, channel: broadcast::Sender<Event>) {
     loop {
@@ -103,7 +105,31 @@ async fn manage_event(
         info!("Server sent {:?}", event);
 
         let to_send: Event = match event {
-            Event::ReadyCheck => Event::Accept,
+            Event::ReadyCheck => {
+                writer.send(Message::ReadyCheck).unwrap();
+                let mut ret = Event::Accept;
+                loop {
+                    warn!("Waiting for message from frontend");
+                    match feedback_reader.recv().await {
+                        Ok(Message::Ready) => {
+                            info!("Message received from frontend");
+                            ret = Event::Accept;
+                            break;
+                        }
+                        Ok(Message::NotReady) => {
+                            info!("Message received from frontend");
+                            ret = Event::Deny;
+                            break;
+                        }
+                        Err(_) => {
+                            writer.send(Message::Exit).unwrap();
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+                ret
+            }
             Event::Deal(card) => {
                 writer.send(Message::Deal(card)).unwrap();
                 Event::Accept
@@ -151,7 +177,10 @@ async fn manage_event(
                 info!("Replaced");
                 Event::Accept
             }
-            Event::WaitingForPlayer => continue,
+            Event::WaitingForPlayers => {
+                writer.send(Message::WaitingForPlayers).unwrap();
+                continue;
+            }
             unexpected => {
                 error!("Got unhandled message: {:?}", unexpected);
                 continue;

@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use super::{Tui, TuiPage};
+use super::{popup::Popup, Tui, TuiPage};
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
-    prelude::{Alignment, Backend, Constraint, Direction, Layout, Rect},
-    style::{Style, Stylize},
+    prelude::{Backend, Constraint, Direction, Layout, Rect},
+    style::Stylize,
     widgets::{Paragraph, Wrap},
     Frame,
 };
@@ -89,7 +89,13 @@ pub trait EventApi {
     fn handle_input(&mut self, control: Controls);
 }
 
-impl<MainPage: TuiPage, MapPage: TuiPage> Tui<MainPage, MapPage> {
+impl<
+        StartPage: TuiPage + Send + 'static,
+        MapPage: TuiPage + Send + 'static,
+        InfoPopup: Popup + Send + 'static,
+        QueryPopup: Popup + Send + 'static,
+    > Tui<StartPage, MapPage, InfoPopup, QueryPopup>
+{
     /// Manages user input
     ///
     ///
