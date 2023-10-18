@@ -1,6 +1,6 @@
 use crate::{
     engine::rules::{Action, Error, New, Received},
-    rules::{Event, GameMetaData},
+    rules::{states::Syncing, Event, GameMetaData},
 };
 
 use super::{DealingCards, DiscardCard, GameState};
@@ -11,6 +11,13 @@ impl DealingCards {
             pending_actions: Vec::with_capacity(players.len()),
             validated: Vec::new(),
             state: GameMetaData::new(players),
+        }
+    }
+    pub fn from(metadata: GameMetaData) -> Self {
+        Self {
+            pending_actions: Vec::new(),
+            validated: Vec::new(),
+            state: metadata,
         }
     }
 }
@@ -35,7 +42,7 @@ impl GameState for DealingCards {
                 }
             }
             // Sleep server for a long time since there is noting to do
-            return (tokio::time::Duration::from_secs(1), actions, None);
+            return (tokio::time::Duration::from_millis(500), actions, None);
         }
         let (done, actions) = self.state.draft();
         for action in &actions {
@@ -44,13 +51,16 @@ impl GameState for DealingCards {
         if done {
             // Now we can transition to the discarding cards
             return (
-                tokio::time::Duration::from_secs(1),
+                tokio::time::Duration::from_millis(500),
                 actions,
-                Some(Box::new(DiscardCard::new(self.state.clone()))),
+                Some(Box::new(Syncing::<DiscardCard>::new(
+                    self.state.clone(),
+                    Box::new(DiscardCard::new(self.state.clone())),
+                ))),
             );
         }
 
-        (tokio::time::Duration::from_secs(1), actions, None)
+        (tokio::time::Duration::from_millis(500), actions, None)
     }
 
     fn register_message(

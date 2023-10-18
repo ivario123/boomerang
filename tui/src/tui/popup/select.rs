@@ -1,7 +1,7 @@
 use log::info;
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Style, Stylize},
+    style::Stylize,
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 use tokio::sync::broadcast;
@@ -49,18 +49,18 @@ impl TuiPage for Select {
         let popup_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage((100 - 5) / 2),
+                Constraint::Percentage((100 - 10) / 2),
                 Constraint::Percentage(10),
-                Constraint::Percentage((100 - 5) / 2),
+                Constraint::Percentage((100 - 10) / 2),
             ])
             .split(frame.size());
 
         let area = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage((100 - 30) / 2),
+                Constraint::Percentage((100 - 60) / 2),
                 Constraint::Percentage(60),
-                Constraint::Percentage((100 - 30) / 2),
+                Constraint::Percentage((100 - 60) / 2),
             ])
             .split(popup_layout[1])[1];
         let internal = Layout::default()
@@ -102,7 +102,7 @@ impl TuiPage for Select {
         self.title = title;
     }
 
-    fn get_title(&mut self) -> &str {
+    fn get_title(&self) -> &str {
         &self.title
     }
 }

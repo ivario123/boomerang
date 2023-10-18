@@ -1,28 +1,23 @@
+use log::info;
+
 use crate::{
     engine::rules::{Action, Error, New, Received},
     rules::{Event, GameMetaData},
 };
 
-use super::{DealingCards, GameState, Scoring, Syncing};
+use super::{GameState, Syncing};
 
-impl Scoring {
-    pub fn new(state: GameMetaData) -> Self {
+impl<Next: GameState + Send + Sync> Syncing<Next> {
+    pub fn new(state: GameMetaData, next_state: Box<Next>) -> Self {
         Self {
             state,
             pending: Vec::new(),
             requested: false,
-            actions: Vec::new(),
+            next_state: Some(next_state),
         }
     }
 }
-
-impl From<GameMetaData> for Scoring{
-    fn from(value: GameMetaData) -> Self {
-        Self::new(value)
-    }
-}
-
-impl GameState for Scoring {
+impl<Next: GameState + Send + Sync + 'static> GameState for Syncing<Next> {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,
@@ -32,43 +27,24 @@ impl GameState for Scoring {
         Option<Box<dyn GameState>>,
     ) {
         let mut actions = Vec::new();
+        info!("Syncing game state with {:?} pending events", self.pending);
         // If we have any out standing messages await these
         if self.pending.len() != 0 {
-            for player in players {
-                if !self.pending.contains(&(*player as u8)) {
-                    actions.push(Action::new(*player, Event::WaitingForPlayers))
-                }
-            }
             // Sleep server for a long time since there is noting to do
-            return (tokio::time::Duration::from_secs(20), actions, None);
+            return (tokio::time::Duration::from_secs(5), actions, None);
         }
         if !self.requested {
             for player in &mut self.state.players {
-                actions.push(Action::new(
-                    player.id as usize,
-                    Event::ScoreActivityQuery(player.un_scored_activity.clone()),
-                ));
+                actions.push(Action::new(player.id as usize, Event::Sync(player.clone())));
                 self.pending.push(player.id);
             }
             self.requested = true;
             (tokio::time::Duration::from_secs(1), actions, None)
         } else {
-            match self.state.score_round(&self.actions) {
-                true => {
-                    todo!();
-                }
-                false => {
-                    self.state.new_round();
-                    (
-                        tokio::time::Duration::from_secs(1),
-                        actions,
-                        Some(Box::new(Syncing::new(
-                            self.state.clone(),
-                            Box::new(DealingCards::from(self.state.clone())),
-                        ))),
-                    )
-                }
-            }
+            // Usage of unwrap here is intended, The only time this goes to none is when some
+            // logic error has occurred, if it does, we should panic
+            let state = std::mem::replace(&mut self.next_state, None).unwrap();
+            (tokio::time::Duration::from_millis(1), actions, Some(state))
         }
     }
 
@@ -101,22 +77,10 @@ impl GameState for Scoring {
         };
 
         match action {
-            Event::ScoreActivityQuery(activities) => {
+            Event::Sync(_) => {
                 // Here we should have an ok of some sort
                 match response {
-                    Event::ScoreActivity(activity) => {
-                        match activity {
-                            Some(activity) => {
-                                if activities.contains(&activity) {
-                                    self.actions.push((player as u8, Some(activity)));
-                                } else {
-                                    return Err(Error::UnexpectedMessage);
-                                }
-                            }
-                            _ => {
-                                self.actions.push((player as u8, None));
-                            }
-                        }
+                    Event::Accept => {
                         self.pending.remove(pending);
                         Ok(None)
                     }

@@ -74,7 +74,7 @@ impl TuiPage for Info {
         self.title = title;
     }
 
-    fn get_title(&mut self) -> &str {
+    fn get_title(&self) -> &str {
         &self.title
     }
 }

@@ -1,9 +1,11 @@
+use log::info;
+
 use crate::{
     engine::rules::{Action, Error, New, Received},
     rules::{Event, GameMetaData},
 };
 
-use super::{GameState, PassHand, Scoring, ShowCard};
+use super::{pass::Direction, GameState, PassHand, Scoring, ShowCard};
 
 impl ShowCard {
     pub fn new(state: GameMetaData) -> Self {
@@ -12,6 +14,12 @@ impl ShowCard {
             pending: Vec::new(),
             requested: false,
         }
+    }
+}
+
+impl From<GameMetaData> for ShowCard {
+    fn from(value: GameMetaData) -> Self {
+        Self::new(value)
     }
 }
 
@@ -49,33 +57,37 @@ impl GameState for ShowCard {
             for player in &self.state.players {
                 for other_player in &self.state.players {
                     if player.id != other_player.id {
+                        info!(
+                            "Sending player {:?}s hand to player {:?}",
+                            player.id, other_player.id
+                        );
                         actions.push(Action::new(
-                            player.id as usize,
+                            other_player.id as usize,
                             Event::ShowPile(player.id, player.show_pile.clone()),
                         ));
                     }
                 }
             }
-            if self.state.hands_empty() {
+            if self.state.hands_singleton() {
                 // Now we move to scoring
                 return (
                     tokio::time::Duration::from_secs(2),
                     actions,
-                    Some(Box::new(Scoring::new(self.state.clone()))),
+                    Some(Box::new(PassHand::<Scoring>::new(
+                        self.state.clone(),
+                        Direction::Backward,
+                    ))),
                 );
             } else {
                 return (
                     tokio::time::Duration::from_secs(2),
                     actions,
-                    Some(Box::new(PassHand::new(self.state.clone()))),
+                    Some(Box::new(PassHand::<ShowCard>::new(
+                        self.state.clone(),
+                        Direction::Forward,
+                    ))),
                 );
             }
-        } else {
-            return (
-                tokio::time::Duration::from_secs(2),
-                actions,
-                Some(Box::new(PassHand::new(self.state.clone()))),
-            );
         }
         (tokio::time::Duration::from_secs(2), actions, None)
     }

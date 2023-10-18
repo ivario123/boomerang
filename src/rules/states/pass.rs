@@ -1,21 +1,31 @@
+use std::marker::PhantomData;
+
 use crate::{
     engine::rules::{Action, Error, New, Received},
     rules::{Event, GameMetaData},
 };
 
-use super::{GameState, PassHand, ShowCard};
+use super::{GameState, PassHand, ShowCard, Syncing};
 
-impl PassHand {
-    pub fn new(state: GameMetaData) -> Self {
+#[derive(Debug, Clone, Copy)]
+pub enum Direction {
+    Forward,
+    Backward,
+}
+
+impl<Next: GameState + Send + Sync+From<GameMetaData>> PassHand<Next> {
+    pub fn new(state: GameMetaData, direction: Direction) -> Self {
         Self {
             state,
             pending: Vec::new(),
             requested: false,
+            direction: direction,
+            next:PhantomData,
         }
     }
 }
 
-impl GameState for PassHand {
+impl<Next: GameState + Send + Sync+From<GameMetaData>+'static> GameState for PassHand<Next> {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,
@@ -35,7 +45,7 @@ impl GameState for PassHand {
             // Sleep server for a long time since there is noting to do
             return (tokio::time::Duration::from_secs(20), actions, None);
         }
-        self.state.circulate();
+        self.state.circulate(self.direction);
         if !self.requested {
             for player in &mut self.state.players {
                 actions.push(Action::new(
@@ -50,7 +60,10 @@ impl GameState for PassHand {
             (
                 tokio::time::Duration::from_secs(1),
                 actions,
-                Some(Box::new(ShowCard::new(self.state.clone()))),
+                Some(Box::new(Syncing::new(
+                    self.state.clone(),
+                    Box::new(Next::from(self.state.clone())),
+                ))),
             )
         }
     }
@@ -67,7 +80,7 @@ impl GameState for PassHand {
         action: (Event, &Action<Received, Event>),
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         let (response, action) = action;
-        let (player,action) = (action.player(),action.action());
+        let (player, action) = (action.player(), action.action());
 
         let mut outstanding_request = None;
         for (idx, &id) in self.pending.iter().enumerate() {

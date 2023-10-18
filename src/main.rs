@@ -7,6 +7,7 @@ use std::{net::TcpListener, sync::Arc, time::UNIX_EPOCH};
 
 use crate::{australia::mappage::DefaultTuiMap, rules::Australia};
 use async_recursion::async_recursion;
+use australia::showpage::ShowPage;
 use australia::{mainpage::DefaultMainPage, mappage, Message};
 use clap::{command, Parser, ValueEnum};
 use log::{error, info, warn};
@@ -52,8 +53,13 @@ struct Args {
     id: usize,
 }
 
-type TuiDefaults =
-    Tui<DefaultMainPage<AustraliaCard, AustraliaPlayer>, mappage::DefaultTuiMap<Map>, Info, Select>;
+type TuiDefaults = Tui<
+    DefaultMainPage<AustraliaCard, AustraliaPlayer>,
+    mappage::DefaultTuiMap<Map>,
+    ShowPage<AustraliaCard, AustraliaPlayer>,
+    Info,
+    Select,
+>;
 #[async_recursion]
 async fn read_event(mut read_part: OwnedReadHalf, channel: broadcast::Sender<Event>) {
     loop {
@@ -170,7 +176,13 @@ async fn manage_event(
                 }
                 Event::Show(ret)
             }
-            Event::ShowPile(idx, cards) => continue,
+            Event::ShowPile(idx, cards) => {
+                info!("Server sent ShowPile({:?},{:?})", idx, cards);
+                writer
+                    .send(Message::ShowOtherHand(idx.into(), cards))
+                    .unwrap();
+                continue;
+            }
             Event::ReassignHand(new_hand) => {
                 info!("Replacing hand with with {:?}", new_hand);
                 writer.send(Message::ReassignHand(new_hand)).unwrap();
@@ -180,6 +192,42 @@ async fn manage_event(
             Event::WaitingForPlayers => {
                 writer.send(Message::WaitingForPlayers).unwrap();
                 continue;
+            }
+            Event::Sync(player) => {
+                writer.send(Message::Sync(player)).unwrap();
+                loop {
+                    warn!("Waiting for message from frontend");
+                    match feedback_reader.recv().await {
+                        Ok(Message::Ok) => {
+                            break;
+                        }
+                        _ => return,
+                    }
+                }
+                Event::Accept
+            }
+            Event::ScoreActivityQuery(options) => {
+                writer.send(Message::ScoreActivityQuery(options)).unwrap();
+                let mut ret = None;
+                loop {
+                    warn!("Waiting for message from frontend");
+                    match feedback_reader.recv().await {
+                        Ok(Message::ScoreActivity(x)) => {
+                            info!("Message received from frontend");
+                            ret = x;
+                            break;
+                        }
+                        _ => {
+                            continue;
+                        }
+                        Err(_) => {
+                            writer.send(Message::Exit).unwrap();
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+                Event::ScoreActivity(ret)
             }
             unexpected => {
                 error!("Got unhandled message: {:?}", unexpected);

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::{popup::Popup, Tui, TuiPage};
+use super::{popup::Popup, showpage::ShowPage as ShowPageTrait, Tui, TuiPage};
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
@@ -92,9 +92,10 @@ pub trait EventApi {
 impl<
         StartPage: TuiPage + Send + 'static,
         MapPage: TuiPage + Send + 'static,
+        ShowPage: ShowPageTrait + Send + 'static,
         InfoPopup: Popup + Send + 'static,
         QueryPopup: Popup + Send + 'static,
-    > Tui<StartPage, MapPage, InfoPopup, QueryPopup>
+    > Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup>
 {
     /// Manages user input
     ///

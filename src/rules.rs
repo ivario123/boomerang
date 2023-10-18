@@ -1,5 +1,7 @@
 pub mod cards;
 pub mod states;
+use std::path::MAIN_SEPARATOR;
+
 use serde::{Deserialize, Serialize};
 use server::engine::{
     event::{BackendEvent, GameEvent},
@@ -9,8 +11,11 @@ use server::engine::{
 use crate::australia::mainpage::CardArea;
 
 use self::{
-    cards::{AustraliaCard, AustraliaDeck, AustralianActivities},
-    states::{DealingCards, GameState, WaitingForPlayers},
+    cards::{
+        Animal, AustraliaCard, AustraliaDeck, AustralianActivity, AustralianAnimal,
+        AustralianRegion, Card, Collection,
+    },
+    states::{pass::Direction, DealingCards, GameState, WaitingForPlayers},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -27,14 +32,15 @@ pub enum Event {
     DiscardRequest,
     /// Discards the card in the players hand at that given index.
     Discard(usize),
-    ScoreActivityQuery(Vec<AustralianActivities>),
-    ScoreActivity(Option<AustralianActivities>),
+    ScoreActivityQuery(Vec<AustralianActivity>),
+    ScoreActivity(Option<AustralianActivity>),
     ReassignHand(Vec<AustraliaCard>),
     WaitingForPlayers,
     WaitingForPlayer,
     Connected(u8),
     UnexpectedMessage,
     Resend,
+    Sync(AustraliaPlayer),
 }
 impl TryInto<BackendEvent> for Event {
     type Error = ();
@@ -73,37 +79,220 @@ impl GameEvent for Event {
             Event::ShowRequest => true,
             Event::ReassignHand(_) => true,
             Event::ScoreActivityQuery(_) => true,
+            Event::Sync(_) => true,
             _ => false,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Scoring {
+    throw_catch: usize,
+    tourist_sites: usize,
+    collections: usize,
+    animals: usize,
+    activity: usize,
+    completed_regions: Vec<AustralianRegion>,
+}
+
+// Builder pattern for scoring
+impl Scoring {
+    fn new() -> Self {
+        Self {
+            throw_catch: 0,
+            tourist_sites: 0,
+            collections: 0,
+            animals: 0,
+            activity: 0,
+            completed_regions: Vec::new(),
+        }
+    }
+
+    fn completed_regions(&self) -> Vec<AustralianRegion> {
+        self.completed_regions.clone()
+    }
+
+    fn score_throw_catch(mut self, player: &AustraliaPlayer) -> Self {
+        let throw = player.get_discard()[0].number();
+        let catch = player.get_hand()[0].number();
+        self.throw_catch = {
+            if throw > catch {
+                throw - catch
+            } else {
+                catch - throw
+            }
+        };
+        self
+    }
+    fn score_collections(mut self, player: &AustraliaPlayer) -> Self {
+        let mut cards = player.get_discard();
+        cards.extend(player.get_show());
+        cards.extend(player.get_hand());
+        let mut sum = 0;
+        for card in cards {
+            sum += match card.collection() {
+                Some(collection) => collection.score(),
+                _ => 0,
+            };
+        }
+        self.collections = match sum > 7 {
+            false => sum * 2,
+            _ => sum,
+        };
+        self
+    }
+
+    fn score_animals(mut self, player: &AustraliaPlayer) -> Self {
+        let mut map = std::collections::HashMap::<AustralianAnimal, bool>::new();
+        let mut cards = player.get_discard();
+        cards.extend(player.get_show());
+        cards.extend(player.get_hand());
+        let mut sum = 0;
+
+        for card in cards {
+            let animal = card.animal();
+            if let Some(animal) = animal {
+                match map.get(&animal) {
+                    Some(value) => {
+                        if *value {
+                            sum += animal.score();
+                        }
+
+                        map.insert(animal, !value);
+                    }
+                    None => {
+                        let _ = map.insert(animal, true);
+                    }
+                }
+            }
+        }
+        self.animals = sum;
+        self
+    }
+    fn score_regions(
+        mut self,
+        player: &AustraliaPlayer,
+        unclaimed_region: &Vec<AustralianRegion>,
+    ) -> Self {
+        let mut cards = player.get_discard();
+        cards.extend(player.get_show());
+        cards.extend(player.get_hand());
+        let mut visited = player.get_visited();
+        let mut total = cards.len();
+        for card in cards {
+            // Insert if not exists
+            if !visited.contains(&card.to_char()) {
+                visited.push(card.to_char());
+            }
+        }
+        let mut completed = Vec::new();
+        for region in unclaimed_region {
+            if region.completed(&visited) {
+                completed.push(region.clone());
+            }
+        }
+        total += completed.len() * 3;
+        self.completed_regions = completed;
+        self.tourist_sites = total;
+        self
+    }
+    fn score_activity(
+        mut self,
+        player: &AustraliaPlayer,
+        activity: Option<AustralianActivity>,
+    ) -> Self {
+        if let None = activity {
+            return self;
+        }
+        let mut cards = player.get_discard();
+        cards.extend(player.get_show());
+        cards.extend(player.get_hand());
+        let mut total = 0;
+        for card in cards {
+            if card.activity() == activity {
+                total += 1;
+            }
+        }
+        self.activity += total;
+        self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AustraliaPlayer {
     id: u8,
     hand: Vec<AustraliaCard>,
     discard_pile: Vec<AustraliaCard>,
     show_pile: Vec<AustraliaCard>,
-    un_scored_activity: Vec<AustralianActivities>,
+    un_scored_activity: Vec<AustralianActivity>,
     #[allow(dead_code)]
-    activity_scores: Vec<(AustralianActivities, usize)>,
+    activity_scores: Vec<(AustralianActivity, usize)>,
     card_ptr: usize,
+    visited: Vec<char>,
+    scoring: Vec<Scoring>,
 }
+
 #[derive(Debug, Clone)]
 pub struct GameMetaData {
     deck: AustraliaDeck,
     players: Vec<AustraliaPlayer>,
+    non_completed_regions: Vec<AustralianRegion>,
+    round_counter: usize,
 }
+
+impl GameMetaData {
+    /// Returns true if the game should end if not it returns false
+    pub fn score_round(
+        &mut self,
+        score_activities: &Vec<(u8, Option<AustralianActivity>)>,
+    ) -> bool {
+        let mut completed = Vec::new();
+        for player in &mut self.players {
+            let mut activity = None;
+            for (uid, score_activity) in score_activities {
+                if player.id == *uid {
+                    activity = score_activity.clone();
+                    break;
+                }
+            }
+            let scoring = Scoring::new()
+                .score_throw_catch(player)
+                .score_collections(player)
+                .score_regions(player, &self.non_completed_regions)
+                .score_activity(player, activity);
+
+            for el in scoring.completed_regions() {
+                if !completed.contains(&el) {
+                    completed.push(el)
+                }
+            }
+            player.add_score(scoring);
+        }
+        for el in completed {
+            self.non_completed_regions.push(el);
+        }
+        self.round_counter == 3
+    }
+    pub fn new_round(&mut self) {
+        self.round_counter += 1;
+        for player in self.players.iter_mut() {
+            player.new_round();
+        }
+    }
+}
+
 impl AustraliaPlayer {
     fn new(id: u8) -> Self {
         Self {
-            id: id,
+            id,
             hand: Vec::new(),
             discard_pile: Vec::new(),
             show_pile: Vec::new(),
-            un_scored_activity: AustralianActivities::to_vec(),
+            un_scored_activity: AustralianActivity::to_vec(),
             activity_scores: Vec::new(),
             card_ptr: 0,
+            visited: Vec::new(),
+            scoring: Vec::new(),
         }
     }
     fn discard(&mut self, idx: &usize) -> Result<AustraliaCard, Error> {
@@ -125,6 +314,44 @@ impl AustraliaPlayer {
     }
     fn hand_empty(&self) -> bool {
         self.hand.len() == 0
+    }
+    pub fn new_round(&mut self) {
+        let mut cards = self.get_discard();
+        cards.extend(self.get_show());
+        cards.extend(self.get_hand());
+
+        for card in cards {
+            if !self.visited.contains(&card.to_char()) {
+                self.visit(card.to_char());
+            }
+        }
+
+        self.hand.clear();
+        self.discard_pile.clear();
+        self.show_pile.clear();
+    }
+    pub fn add_score(&mut self, score: Scoring) {
+        self.scoring.push(score);
+    }
+    pub fn visit(&mut self, site: char) {
+        self.visited.push(site);
+    }
+    pub fn get_visited(&self) -> Vec<char> {
+        self.visited.clone()
+    }
+    pub fn get_hand(&self) -> Vec<AustraliaCard> {
+        self.hand.clone()
+    }
+    pub fn get_discard(&self) -> Vec<AustraliaCard> {
+        self.discard_pile.clone()
+    }
+    pub fn get_show(&self) -> Vec<AustraliaCard> {
+        self.show_pile.clone()
+    }
+
+    pub fn set_cards(mut self, cards: Vec<AustraliaCard>) -> Self {
+        self.hand = cards;
+        self
     }
 
     pub fn card_ptr(&mut self) -> &mut usize {
@@ -161,9 +388,11 @@ impl tui::ui::UiElement for AustraliaPlayer {
             hand: Vec::new(),
             discard_pile: Vec::new(),
             show_pile: Vec::new(),
-            un_scored_activity: AustralianActivities::to_vec(),
+            un_scored_activity: AustralianActivity::to_vec(),
             activity_scores: Vec::new(),
             card_ptr: 0,
+            visited: Vec::new(),
+            scoring: Vec::new(),
         }
     }
 }
@@ -197,6 +426,8 @@ impl GameMetaData {
         Self {
             deck: AustraliaDeck::default(),
             players: players_vec,
+            non_completed_regions: AustralianRegion::to_vec(),
+            round_counter: 0,
         }
     }
     fn draft(&mut self) -> (bool, Vec<Action<New, Event>>) {
@@ -244,13 +475,34 @@ impl GameMetaData {
         }
     }
     /// Circulates the players hands in between them
-    fn circulate(&mut self) {
-        let mut prev_hand = self.players.last().unwrap().hand.clone();
-        for player in self.players.iter_mut() {
-            let intermediate = player.hand.clone();
-            player.hand = prev_hand;
-            prev_hand = intermediate;
+    fn circulate(&mut self, direction: Direction) {
+        let players = match direction {
+            Direction::Forward => {
+                let mut prev_hand = self.players.last().unwrap().hand.clone();
+                for player in self.players.iter_mut() {
+                    let intermediate = player.hand.clone();
+                    player.hand = prev_hand;
+                    prev_hand = intermediate;
+                }
+            }
+            Direction::Backward => {
+                let mut prev_hand = self.players.last().unwrap().hand.clone();
+                for player in self.players.iter_mut() {
+                    let intermediate = player.hand.clone();
+                    player.hand = prev_hand;
+                    prev_hand = intermediate;
+                }
+            }
+        };
+    }
+    fn hands_singleton(&self) -> bool {
+        let mut ret = true;
+        for player in &self.players {
+            if player.hand_size() != 1 {
+                ret = false;
+            }
         }
+        ret
     }
     fn hands_empty(&self) -> bool {
         let mut empty = true;

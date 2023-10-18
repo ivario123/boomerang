@@ -1,5 +1,6 @@
 pub mod mainpage;
 pub mod mappage;
+pub mod showpage;
 
 use async_std::channel::{self, Recv};
 use log::info;
@@ -22,10 +23,16 @@ use tui::{
 
 use crate::{
     read_event,
-    rules::{cards::AustraliaCard, AustraliaPlayer},
+    rules::{
+        cards::{AustraliaCard, AustralianActivity},
+        AustraliaPlayer,
+    },
 };
 
-use self::mainpage::{CardArea, DefaultMainPage};
+use self::{
+    mainpage::{CardArea, DefaultMainPage},
+    showpage::ShowPage,
+};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -38,8 +45,12 @@ pub enum Message {
     Discard(AustraliaCard, usize),
     ShowQuery,
     Show(AustraliaCard, usize),
+    ShowOtherHand(usize, Vec<AustraliaCard>),
     ReassignHand(Vec<AustraliaCard>),
-
+    Sync(AustraliaPlayer),
+    Ok,
+    ScoreActivityQuery(Vec<AustralianActivity>),
+    ScoreActivity(Option<AustralianActivity>),
     Exit,
 }
 impl UiMessage for Message {}
@@ -110,6 +121,7 @@ impl TuiMonitor<Message, Info, Select>
     for Tui<
         DefaultMainPage<AustraliaCard, AustraliaPlayer>,
         mappage::DefaultTuiMap<Map>,
+        crate::australia::showpage::ShowPage<AustraliaCard, AustraliaPlayer>,
         Info,
         Select,
     >
@@ -137,6 +149,7 @@ impl TuiMonitor<Message, Info, Select>
     }
     async fn info(page: Arc<RwLock<Box<Self>>>, mut popup: Info) {
         info!("Showing info pupup");
+        page.write().await.clear_popup();
         while let true = page.write().await.showing_popup() {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
@@ -199,6 +212,13 @@ impl TuiMonitor<Message, Info, Select>
                         .request(Message::ShowQuery, transmit.clone())
                         .unwrap();
                 }
+                Message::ShowOtherHand(uid, cards) => {
+                    let mut new_player = page
+                        .write()
+                        .await
+                        .paginate()
+                        .replace_into(ShowPage::new(uid, AustraliaPlayer::new().set_cards(cards)));
+                }
                 Message::ReassignHand(cards) => {
                     let mut new_hand: AustraliaPlayer = AustraliaPlayer::new();
                     for card in cards {
@@ -242,6 +262,46 @@ impl TuiMonitor<Message, Info, Select>
                         }
                         _ => {
                             transmit.send(Message::NotReady).unwrap();
+                        }
+                    }
+                }
+                Message::Sync(player) => {
+                    let hand = AustraliaPlayer::new().set_cards(player.get_hand());
+
+                    let mut discard = player.get_discard();
+                    discard.extend(player.get_show());
+                    let discard = AustraliaPlayer::new().set_cards(discard);
+                    page.write().await.main_page().reassign_hand(hand);
+                    page.write().await.main_page().reassign_show(discard);
+                    transmit.send(Message::Ok).unwrap();
+                }
+                Message::ScoreActivityQuery(options) => {
+                    let (write_part, mut read_part) = broadcast::channel(32);
+                    let num_options = options.len();
+                    // Cloning here is fin since the vector is small
+                    let mut selectable: Vec<String> =
+                        AustralianActivity::to_string_vec(options.clone());
+                    selectable.push("Do not score anything".to_owned());
+                    let popup = Select::new(
+                        write_part,
+                        selectable,
+                        "What activity do you want to score this round?".to_owned(),
+                    );
+                    tokio::spawn(Self::select(page.clone(), popup));
+                    loop {
+                        match read_part.recv().await {
+                            Ok(popup::Message::Select(x)) => {
+                                transmit
+                                    .send(Message::ScoreActivity(match x < num_options - 1 {
+                                        true => Some(options[x]),
+                                        false => None,
+                                    }))
+                                    .unwrap();
+                                return;
+                            }
+                            _ => {
+                                continue;
+                            }
                         }
                     }
                 }

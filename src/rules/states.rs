@@ -1,5 +1,7 @@
 extern crate server;
-use super::{GameMetaData, Event};
+use std::marker::PhantomData;
+
+use super::{cards::AustralianActivity, Event, GameMetaData};
 use server::engine::rules::{Action, Error, New, Received};
 
 pub mod dealing;
@@ -7,6 +9,7 @@ pub mod discard;
 pub mod pass;
 pub mod score;
 pub mod show;
+pub mod syncing;
 pub mod waiting;
 
 pub trait GameState: Send + std::fmt::Debug {
@@ -49,10 +52,12 @@ pub struct DiscardCard {
     requested: bool,
 }
 #[derive(Debug)]
-pub struct PassHand {
+pub struct PassHand<Next: GameState + Send + Sync + From<GameMetaData>> {
     state: GameMetaData,
     pending: Vec<u8>,
     requested: bool,
+    direction: pass::Direction,
+    next: PhantomData<Next>,
 }
 
 #[derive(Debug)]
@@ -67,4 +72,13 @@ pub struct Scoring {
     state: GameMetaData,
     pending: Vec<u8>,
     requested: bool,
+    actions: Vec<(u8, Option<AustralianActivity>)>,
+}
+
+#[derive(Debug)]
+pub struct Syncing<Next: GameState + Send + Sync> {
+    state: GameMetaData,
+    pending: Vec<u8>,
+    requested: bool,
+    next_state: Option<Box<Next>>,
 }

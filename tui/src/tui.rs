@@ -1,8 +1,8 @@
 pub mod paginate;
 pub mod popup;
+pub mod showpage;
 
 use std::{
-    cell::RefCell,
     error::Error,
     io::{stdout, Stdout},
     sync::Arc,
@@ -17,15 +17,18 @@ use crossterm::{
 use log::{info, warn};
 use ratatui::{
     prelude::{Backend, Constraint, CrosstermBackend, Direction, Layout, Rect},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders},
     Frame,
 };
 use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 
-use crate::ui::{self, Card, UiMessage};
+use crate::{
+    maps::Map,
+    ui::{self, UiMessage},
+};
 use controls::*;
 
-use self::{paginate::Paginate, popup::Popup};
+use self::{paginate::Paginate, popup::Popup, showpage::ShowPage as ShowPageTrait};
 
 // These type aliases are used to make the code more readable by reducing repetition of the generic
 // types. They are not necessary for the functionality of the code.
@@ -36,7 +39,7 @@ pub mod controls;
 pub trait TuiPage: EventApi {
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect);
     fn set_title(&mut self, title: String);
-    fn get_title(&mut self) -> &str;
+    fn get_title(&self) -> &str;
 }
 
 #[async_trait]
@@ -64,16 +67,27 @@ pub enum TuiError {
     PopupAlreadyShowing,
 }
 
-pub struct Tui<MainPage: TuiPage, MapPage: TuiPage, InfoPopup: Popup, QueryPopup: Popup> {
+pub struct Tui<
+    MainPage: TuiPage,
+    MapPage: TuiPage,
+    ShowPage: ShowPageTrait,
+    InfoPopup: Popup,
+    QueryPopup: Popup,
+> {
     terminal: Terminal,
-    paginate: Paginate<MainPage, MapPage>,
+    paginate: Paginate<MainPage, MapPage, ShowPage>,
     show_popup: bool,
     info: Option<InfoPopup>,
     query: Option<QueryPopup>,
 }
 
-impl<MainPage: TuiPage, MapPage: TuiPage, InfoPopup: Popup, QueryPopup: Popup>
-    Tui<MainPage, MapPage, InfoPopup, QueryPopup>
+impl<
+        MainPage: TuiPage,
+        MapPage: TuiPage,
+        ShowPage: ShowPageTrait,
+        InfoPopup: Popup,
+        QueryPopup: Popup,
+    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup>
 {
     pub fn show_info(&mut self, info: InfoPopup) -> Result<(), TuiError> {
         if self.show_popup {
@@ -101,12 +115,27 @@ impl<MainPage: TuiPage, MapPage: TuiPage, InfoPopup: Popup, QueryPopup: Popup>
         self.info = None;
     }
 }
+
 impl<
         MainPage: TuiPage,
         MapPage: TuiPage,
-        InfoPopup: Popup + std::fmt::Debug,
+        ShowPage: ShowPageTrait,
+        InfoPopup: Popup,
         QueryPopup: Popup,
-    > Tui<MainPage, MapPage, InfoPopup, QueryPopup>
+    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup>
+{
+    pub fn paginate(&mut self) -> &mut Paginate<MainPage, MapPage, ShowPage> {
+        &mut self.paginate
+    }
+}
+
+impl<
+        MainPage: TuiPage,
+        MapPage: TuiPage,
+        ShowPage: ShowPageTrait,
+        InfoPopup: Popup,
+        QueryPopup: Popup,
+    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup>
 {
     // Sets up the terminal to use the crossterm backend
     fn setup_terminal() -> Result<Terminal, Box<dyn Error>> {
@@ -141,7 +170,10 @@ impl<
         self.show_popup
     }
 
-    fn draw<B: Backend>(frame: &mut Frame<B>, paginate: &mut Paginate<MainPage, MapPage>) {
+    fn draw<B: Backend>(
+        frame: &mut Frame<B>,
+        paginate: &mut Paginate<MainPage, MapPage, ShowPage>,
+    ) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
@@ -196,9 +228,10 @@ impl<
 impl<
         StartPage: TuiPage + Send + 'static,
         MapPage: TuiPage + Send + 'static,
+        ShowPage: ShowPageTrait + Send + 'static,
         InfoPopup: Popup + Send + 'static,
         QueryPopup: Popup + Send + 'static,
-    > Tui<StartPage, MapPage, InfoPopup, QueryPopup>
+    > Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup>
 {
     pub fn init(mainpage: StartPage, mappage: MapPage) -> RwLock<Box<Self>> {
         let ret: Self = Self {
@@ -216,9 +249,10 @@ impl<
 impl<
         StartPage: TuiPage + Send + Sync + 'static,
         MapPage: TuiPage + Send + Sync + 'static,
+        ShowPage: ShowPageTrait + Send + Sync + 'static,
         InfoPopup: Popup + Send + Sync + 'static,
         QueryPopup: Popup + Send + Sync + 'static,
-    > ui::Ui for Tui<StartPage, MapPage, InfoPopup, QueryPopup>
+    > ui::Ui for Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup>
 {
     async fn start(ui: Arc<RwLock<Box<Self>>>)
     where

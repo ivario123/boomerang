@@ -1,11 +1,8 @@
 pub mod info;
 pub mod select;
-use tokio::sync::broadcast::{self, Receiver};
+use tokio::sync::broadcast::Receiver;
 
-use super::{
-    controls::{Controls, EventApi},
-    TuiPage,
-};
+use super::TuiPage;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {

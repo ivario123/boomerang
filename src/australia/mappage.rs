@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use ratatui::{
-    prelude::{Backend, Rect},
+    prelude::{Backend, Constraint, Direction, Layout, Rect},
     symbols::Marker,
     widgets::canvas::Canvas,
     Frame,
@@ -39,13 +39,19 @@ impl<M: maps::Map + ratatui::widgets::canvas::Shape> TuiPage for DefaultTuiMap<M
 where
     M::REGION: 'static,
 {
-    fn get_title(&mut self) -> &str {
+    fn get_title(&self) -> &str {
         &self.title
     }
     fn set_title(&mut self, title: String) {
         self.title = title
     }
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect) {
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
+            .split(block);
+
         let canvas = Canvas::default()
             .x_bounds([0.0, M::WIDTH as f64])
             .y_bounds([0.0, M::HEIGHT as f64])
@@ -68,7 +74,8 @@ where
                 });
             })
             .marker(Marker::Dot);
+        
 
-        frame.render_widget(canvas, block);
+        let scoring_region = frame.render_widget(canvas, layout[0]);
     }
 }

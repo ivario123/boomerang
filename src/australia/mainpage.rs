@@ -23,7 +23,6 @@ use super::Message;
 
 use std::panic;
 
-
 #[derive(Debug)]
 pub enum Error {
     /// There is already a pending action
@@ -93,6 +92,11 @@ impl<C: Card, H: Hand<C> + CardArea<C> + std::fmt::Debug> DefaultMainPage<C, H> 
         self.hand = hand;
         info!("Done!");
     }
+    pub fn reassign_show(&mut self, discard_pile: H) {
+        info!("Replacing show pile with {:?} hand", discard_pile);
+        self.discard_pile = discard_pile;
+        info!("Done!");
+    }
 }
 
 impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> EventApi
@@ -103,7 +107,7 @@ impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> EventApi
             true => &mut self.discard_pile,
             false => &mut self.hand,
         };
-    
+
         match control {
             Controls::Left => focused.decrement(),
             Controls::Right => focused.increment(),
@@ -171,7 +175,7 @@ impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> TuiPage
     fn set_title(&mut self, title: String) {
         self.title = title
     }
-    fn get_title(&mut self) -> &str {
+    fn get_title(&self) -> &str {
         &self.title
     }
 }

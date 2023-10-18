@@ -1,6 +1,9 @@
-use crate::{engine::rules::{Action, Error, New, Received}, rules::{GameMetaData, Event}};
+use crate::{
+    engine::rules::{Action, Error, New, Received},
+    rules::{Event, GameMetaData},
+};
 
-use super::{DiscardCard, GameState, PassHand};
+use super::{pass::Direction, DiscardCard, GameState, PassHand, ShowCard};
 
 impl DiscardCard {
     pub fn new(state: GameMetaData) -> Self {
@@ -25,7 +28,7 @@ impl GameState for DiscardCard {
         let mut request = |event: Event| {
             for player in players {
                 if !self.pending.contains(&(*player as u8)) {
-                    actions.push(Action ::new(*player,event.clone()));
+                    actions.push(Action::new(*player, event.clone()));
                 }
             }
         };
@@ -37,7 +40,7 @@ impl GameState for DiscardCard {
         }
         if !self.requested {
             for player in players {
-                actions.push(Action ::new(*player,Event::DiscardRequest));
+                actions.push(Action::new(*player, Event::DiscardRequest));
                 self.pending.push(*player as u8);
             }
             self.requested = true;
@@ -45,7 +48,10 @@ impl GameState for DiscardCard {
             return (
                 tokio::time::Duration::from_secs(2),
                 actions,
-                Some(Box::new(PassHand::new(self.state.clone()))),
+                Some(Box::new(PassHand::<ShowCard>::new(
+                    self.state.clone(),
+                    Direction::Forward,
+                ))),
             );
         }
         (tokio::time::Duration::from_secs(2), actions, None)
@@ -63,8 +69,8 @@ impl GameState for DiscardCard {
         action: (Event, &Action<Received, Event>),
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         println!("{:?}", action);
-        let (response, action ) = action;
-        let (player,action) = (action.player(),action.action());
+        let (response, action) = action;
+        let (player, action) = (action.player(), action.action());
         println!("{:?},{:?},{:?}", response, player, action);
 
         let mut outstanding_request = None;

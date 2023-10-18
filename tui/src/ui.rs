@@ -9,6 +9,7 @@ pub trait UiElement {
 
 pub trait Card {
     fn get_name(&self) -> &str;
+    fn number(&self) -> usize;
 }
 
 pub trait Hand<C: Card>: UiElement {
