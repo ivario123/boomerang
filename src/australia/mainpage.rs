@@ -21,6 +21,9 @@ use crate::rules::cards::AustraliaCard;
 
 use super::Message;
 
+use std::panic;
+
+
 #[derive(Debug)]
 pub enum Error {
     /// There is already a pending action
@@ -86,9 +89,9 @@ impl<C: Card, H: Hand<C> + CardArea<C> + std::fmt::Debug> DefaultMainPage<C, H> 
         Ok(())
     }
     pub fn reassign_hand(&mut self, hand: H) {
-        println!("Replacing hand with {:?} hand", hand);
+        info!("Replacing hand with {:?} hand", hand);
         self.hand = hand;
-        println!("Done!");
+        info!("Done!");
     }
 }
 

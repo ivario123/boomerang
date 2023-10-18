@@ -2,7 +2,7 @@ mod australia;
 mod rules;
 
 extern crate clap;
-use core::panic;
+use std::panic::set_hook;
 use std::{net::TcpListener, sync::Arc, time::UNIX_EPOCH};
 
 use crate::{australia::mappage::DefaultTuiMap, rules::Australia};
@@ -95,10 +95,8 @@ async fn manage_event(
 ) {
     info!("Monitoring TCP");
 
-    let mut previous_message = Event::Accept;
-
     loop {
-        let event: Event = match reader.try_recv() {
+        let event: Event = match reader.recv().await {
             Ok(event) => event,
             _ => continue,
         };
@@ -107,7 +105,6 @@ async fn manage_event(
         let to_send: Event = match event {
             Event::ReadyCheck => Event::Accept,
             Event::Deal(card) => {
-                send_event(&mut write_part, event.clone()).await;
                 writer.send(Message::Deal(card)).unwrap();
                 Event::Accept
             }
@@ -132,7 +129,7 @@ async fn manage_event(
                 Event::Discard(ret)
             }
             Event::ShowRequest => {
-                writer.send(Message::DiscardQuery).unwrap();
+                writer.send(Message::ShowQuery).unwrap();
                 let mut ret = 0;
                 loop {
                     warn!("Waiting for message from frontend");
@@ -150,7 +147,7 @@ async fn manage_event(
             Event::ShowPile(idx, cards) => continue,
             Event::ReassignHand(new_hand) => {
                 info!("Replacing hand with with {:?}", new_hand);
-                send_event(&mut write_part, Event::ReassignHand(new_hand)).await;
+                writer.send(Message::ReassignHand(new_hand)).unwrap();
                 info!("Replaced");
                 Event::Accept
             }
@@ -242,6 +239,19 @@ async fn main() {
         .init();
 
     info!("App started with args : -m {:?}", args.mode);
+
+    set_hook(Box::new(|panic_info| {
+        let location = panic_info.location();
+        let message = panic_info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|s| *s)
+            .unwrap_or("Panic occurred");
+
+        // Log the panic message and location.
+        error!(target: "my_panic_handler", "Panic occurred: {} at {:?}", message, location);
+    }));
+
     match args.mode {
         Mode::Server => server_main().await,
         Mode::Client => player_main().await,
