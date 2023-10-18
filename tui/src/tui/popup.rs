@@ -12,4 +12,5 @@ pub enum Message {
 
 pub trait Popup: TuiPage + std::fmt::Debug {
     fn subscribe(&mut self) -> Receiver<Message>;
+    fn exit(&mut self);
 }

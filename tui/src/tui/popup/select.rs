@@ -19,15 +19,25 @@ pub struct Select {
     title: String,
     options: Vec<String>,
     selected: usize,
+    width: u16,
+    height: u16,
 }
 
 impl Select {
-    pub fn new(channel: broadcast::Sender<Message>, options: Vec<String>, title: String) -> Self {
+    pub fn new(
+        channel: broadcast::Sender<Message>,
+        options: Vec<String>,
+        title: String,
+        height: u16,
+        width: u16,
+    ) -> Self {
         Self {
             channel,
             options,
             title,
             selected: 0,
+            width,
+            height,
         }
     }
 }
@@ -35,6 +45,9 @@ impl Select {
 impl Popup for Select {
     fn subscribe(&mut self) -> broadcast::Receiver<Message> {
         self.channel.subscribe()
+    }
+    fn exit(&mut self) {
+        let _ = self.channel.send(Message::Close);
     }
 }
 impl TuiPage for Select {
@@ -49,18 +62,18 @@ impl TuiPage for Select {
         let popup_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage((100 - 10) / 2),
-                Constraint::Percentage(10),
-                Constraint::Percentage((100 - 10) / 2),
+                Constraint::Percentage((100 - self.height) / 2),
+                Constraint::Percentage(self.height),
+                Constraint::Percentage((100 - self.height) / 2),
             ])
             .split(frame.size());
 
         let area = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage((100 - 60) / 2),
-                Constraint::Percentage(60),
-                Constraint::Percentage((100 - 60) / 2),
+                Constraint::Percentage((100 - self.width) / 2),
+                Constraint::Percentage(self.width),
+                Constraint::Percentage((100 - self.width) / 2),
             ])
             .split(popup_layout[1])[1];
         let internal = Layout::default()
@@ -122,6 +135,7 @@ impl EventApi for Select {
             }
             Controls::Enter => {
                 self.channel.send(Message::Select(self.selected)).unwrap();
+                std::thread::sleep(std::time::Duration::from_millis(42));
                 self.channel.send(Message::Close).unwrap();
             }
             _ => {}

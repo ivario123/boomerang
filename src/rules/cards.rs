@@ -15,6 +15,7 @@ pub trait Card<C: Collection, A: Animal>: std::fmt::Debug {
     fn collection(&self) -> Option<C>;
     fn animal(&self) -> Option<A>;
     fn activity(&self) -> Option<AustralianActivity>;
+    fn region(&self) -> AustralianRegion;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -269,6 +270,14 @@ macro_rules! card {
                 match self{
                     $(
                         AustraliaCard::$name => {$site},
+                    )+
+                }
+            }
+
+            fn region(&self) -> AustralianRegion{
+                match self{
+                    $(
+                        AustraliaCard::$name => AustralianRegion::$region,
                     )+
                 }
             }

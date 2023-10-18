@@ -113,4 +113,7 @@ impl<MainPage: TuiPage, MapPage: TuiPage, ShowPage: ShowPageTrait>
     pub fn main_page(&mut self) -> &mut MainPage {
         &mut self.0
     }
+    pub fn map_page(&mut self) -> &mut MapPage {
+        &mut self.1
+    }
 }

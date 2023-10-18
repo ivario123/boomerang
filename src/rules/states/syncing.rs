@@ -26,6 +26,7 @@ impl<Next: GameState + Send + Sync + 'static> GameState for Syncing<Next> {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        info!("State : {:?}",self);
         let mut actions = Vec::new();
         info!("Syncing game state with {:?} pending events", self.pending);
         // If we have any out standing messages await these

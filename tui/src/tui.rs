@@ -109,6 +109,20 @@ impl<
         self.info = None;
         Ok(())
     }
+    pub fn cleanup_popup(&mut self){
+        match &mut self.query{
+            Some(page) => {
+                page.exit();
+            },
+            None => {},
+        }
+        match &mut self.info{
+            Some(page) => {
+                page.exit();
+            },
+            None => {},
+        }
+    }
     pub fn clear_popup(&mut self) {
         self.show_popup = false;
         self.query = None;
@@ -310,11 +324,8 @@ impl<
 
             // Redraw every second
             let _ = tokio::time::sleep(Duration::from_millis(50)).await;
-            warn!("Waiting for lock on terminal");
             let mut ui_lock = ui.write().await;
-            info!("Acquired the lock");
             ui_lock.term_draw();
-            info!("Terminal done drawing");
         }
     }
 }

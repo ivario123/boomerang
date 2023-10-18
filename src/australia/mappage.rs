@@ -14,9 +14,9 @@ use tui::{
 };
 
 pub struct DefaultTuiMap<M: maps::Map> {
-    pub lock: Mutex<PhantomData<M>>,
     map: M,
     title: String,
+    visited: Vec<char>,
 }
 
 impl<M: maps::Map> DefaultTuiMap<M> {
@@ -24,13 +24,16 @@ impl<M: maps::Map> DefaultTuiMap<M> {
         Self {
             map: M::default(),
             title: "Map".to_owned(),
-            lock: Mutex::new(PhantomData),
+            visited: Vec::new(),
         }
+    }
+    pub fn update_visited(&mut self, visited: Vec<char>) {
+        self.visited = visited
     }
 }
 
 impl<M: maps::Map> EventApi for DefaultTuiMap<M> {
-    fn handle_input(&mut self, control: tui::tui::controls::Controls) {
+    fn handle_input(&mut self, _control: tui::tui::controls::Controls) {
         // This should be able to assign scores and things I guess
     }
 }
@@ -61,7 +64,7 @@ where
                 let mut region = <M as Map>::REGION::default();
                 let mut offset = 0;
                 let _ = sites.iter_mut().enumerate().for_each(|(idx, site)| {
-                    if idx % 2 == 0 {
+                    if self.visited.contains(&site.get_id()) {
                         site.complete();
                     }
                     let new_region = site.region();
@@ -74,7 +77,6 @@ where
                 });
             })
             .marker(Marker::Dot);
-        
 
         let scoring_region = frame.render_widget(canvas, layout[0]);
     }

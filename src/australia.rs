@@ -3,11 +3,11 @@ pub mod mappage;
 pub mod showpage;
 
 use async_std::channel::{self, Recv};
-use log::info;
+use log::{error, info};
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    widgets::{Block, Borders},
+    style::{Color, Style, Stylize},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use tui::{
 use crate::{
     read_event,
     rules::{
-        cards::{AustraliaCard, AustralianActivity},
+        cards::{AustraliaCard, AustralianActivity, Card as CardTrait},
         AustraliaPlayer,
     },
 };
@@ -45,7 +45,7 @@ pub enum Message {
     Discard(AustraliaCard, usize),
     ShowQuery,
     Show(AustraliaCard, usize),
-    ShowOtherHand(usize, Vec<AustraliaCard>),
+    ShowOtherHand(usize, Vec<AustraliaCard>, Vec<char>),
     ReassignHand(Vec<AustraliaCard>),
     Sync(AustraliaPlayer),
     Ok,
@@ -111,7 +111,34 @@ where
                         false => Color::Gray,
                     }),
                 );
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(1)
+                .constraints([Constraint::Percentage((100 / 5) as u16); 5].as_ref())
+                .split(*area)
+                .to_vec();
+
+            let mut paragraphs = Vec::new();
+            paragraphs.push(Paragraph::new(format!(
+                "Site : {:?} | # : {:?}",
+                card.to_char(),
+                CardTrait::number(card)
+            )));
+            paragraphs.push(Paragraph::new(format!("Region : {:?}", card.region())));
+            if let Some(collection) = card.collection() {
+                paragraphs.push(Paragraph::new(format!("Collection : {:?}", collection)));
+            }
+            if let Some(animal) = card.animal() {
+                paragraphs.push(Paragraph::new(format!("Animal : {:?}", animal)));
+            }
+            if let Some(activity) = card.activity() {
+                paragraphs.push(Paragraph::new(format!("Activity : {:?}", activity)));
+            }
+
             frame.render_widget(rect, *area);
+            for (area, par) in layout.iter().zip(paragraphs) {
+                frame.render_widget(par, *area);
+            }
         }
     }
 }
@@ -127,9 +154,8 @@ impl TuiMonitor<Message, Info, Select>
     >
 {
     async fn select(page: Arc<RwLock<Box<Self>>>, mut popup: Select) {
-        while let true = page.write().await.showing_popup() {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        }
+        info!("Showing query prompt");
+        page.write().await.cleanup_popup();
         let mut channel = {
             let mut page_write = page.write().await;
             let channel = popup.subscribe();
@@ -149,7 +175,7 @@ impl TuiMonitor<Message, Info, Select>
     }
     async fn info(page: Arc<RwLock<Box<Self>>>, mut popup: Info) {
         info!("Showing info pupup");
-        page.write().await.clear_popup();
+        page.write().await.cleanup_popup();
         while let true = page.write().await.showing_popup() {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
@@ -189,7 +215,11 @@ impl TuiMonitor<Message, Info, Select>
             }
             let msg = msg.unwrap();
             match msg {
-                Message::Deal(card) => page.write().await.main_page().add_card(card),
+                // ================================================================================
+                //                          Requires Manual Intervention
+                // ================================================================================
+
+                // -------------------------            Queries           -------------------------
                 Message::DiscardQuery => {
                     info!("Trying to show waiting for discard dialog");
                     let (write_part, read_part) = broadcast::channel(32);
@@ -206,18 +236,93 @@ impl TuiMonitor<Message, Info, Select>
                         .unwrap();
                 }
                 Message::ShowQuery => {
+                    let (write_part, _) = broadcast::channel(32);
+                    let popup = Info::new(
+                        write_part,
+                        "Select a card to show to the other players".to_owned(),
+                    );
+                    let page_clone = page.clone();
+                    tokio::spawn(async move { Self::info(page_clone.clone(), popup).await });
                     page.write()
                         .await
                         .main_page()
                         .request(Message::ShowQuery, transmit.clone())
                         .unwrap();
                 }
-                Message::ShowOtherHand(uid, cards) => {
-                    let mut new_player = page
-                        .write()
-                        .await
-                        .paginate()
-                        .replace_into(ShowPage::new(uid, AustraliaPlayer::new().set_cards(cards)));
+                Message::ReadyCheck => {
+                    let (write_part, mut read_part) = broadcast::channel(32);
+                    let popup = Select::new(
+                        write_part,
+                        vec!["Yes".to_owned(), "Not yet".to_owned()],
+                        "Do you want to start the game?".to_owned(),
+                        20,
+                        60,
+                    );
+                    tokio::spawn(Self::select(page.clone(), popup));
+
+                    match read_part.recv().await {
+                        Ok(popup::Message::Select(0)) => {
+                            transmit.send(Message::Ready).unwrap();
+                        }
+                        _ => {
+                            transmit.send(Message::NotReady).unwrap();
+                        }
+                    }
+                }
+                Message::ScoreActivityQuery(options) => {
+                    transmit.send(Message::ScoreActivity(None)).unwrap();
+                    continue;
+                    // Felet ligger någon stans i spawnandet av dialogen, vet inte vad som går fel
+                    // kan race conditions eller ett deadlock men tracet visar att 
+                    // vi kanalen går ur scope innan vi får svar ifrån den, kan vara någon info
+                    // dialog som kommer emellan vet inte.
+                    let (write_part, mut read_part) = broadcast::channel(32);
+                    let num_options = options.len();
+                    // Cloning here is fin since the vector is small
+                    let mut selectable: Vec<String> =
+                        AustralianActivity::to_string_vec(options.clone());
+                    selectable.push("Do not score anything".to_owned());
+                    let popup = Select::new(
+                        write_part,
+                        selectable,
+                        "What activity do you want to score this round?".to_owned(),
+                        20,
+                        90,
+                    );
+                    let page_clone = page.clone();
+                    tokio::spawn(async move { Self::select(page_clone.clone(), popup).await });
+                    loop {
+                        match read_part.recv().await {
+                            Ok(popup::Message::Select(x)) => {
+                                transmit
+                                    .send(Message::ScoreActivity(match x < num_options - 1 {
+                                        true => Some(options[x]),
+                                        false => None,
+                                    }))
+                                    .unwrap();
+                                break;
+                            }
+
+                            Err(_) => {
+                                error!("Frontend must have crashed");
+                                transmit.send(Message::ScoreActivity(None)).unwrap();
+                                return;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                // ================================================================================
+                //                              Automated responses
+                // ================================================================================
+                // -------------------------            Updates           -------------------------
+                Message::Deal(card) => page.write().await.main_page().add_card(card),
+                Message::ShowOtherHand(uid, cards, visited) => {
+                    let mut new_player = page.write().await.paginate().replace_into(ShowPage::new(
+                        uid,
+                        AustraliaPlayer::new().set_cards(cards),
+                        visited,
+                    ));
                 }
                 Message::ReassignHand(cards) => {
                     let mut new_hand: AustraliaPlayer = AustraliaPlayer::new();
@@ -228,11 +333,28 @@ impl TuiMonitor<Message, Info, Select>
 
                     info!("Trying to show waiting for swapped hands dialog");
                     let (write_part, read_part) = broadcast::channel(32);
-                    let popup =
-                        Info::new(write_part, "Swapped hands! time to show a card".to_owned());
+                    let popup = Info::new(write_part, "Swapped hands!".to_owned());
                     let page_clone = page.clone();
                     tokio::spawn(async move { Self::info(page_clone.clone(), popup).await });
                 }
+                Message::Sync(mut player) => {
+                    let hand = AustraliaPlayer::new().set_cards(player.get_hand());
+
+                    let mut discard = player.get_discard();
+                    discard.extend(player.get_show());
+                    let discard = AustraliaPlayer::new().set_cards(discard);
+                    let mut locked_page = page.write().await;
+                    locked_page.main_page().reassign_hand(hand);
+                    locked_page.main_page().reassign_show(discard);
+                    locked_page
+                        .paginate()
+                        .map_page()
+                        .update_visited(player.privately_visited());
+                    // Ensure that lock is freed before transmit
+                    drop(locked_page);
+                    transmit.send(Message::Ok).unwrap();
+                }
+                // -------------------------            Status           -------------------------
                 Message::WaitingForPlayers => {
                     info!("Waiting for players");
                     {
@@ -246,64 +368,6 @@ impl TuiMonitor<Message, Info, Select>
                     let popup = Info::new(write_part, "Waiting for players".to_owned());
                     let page_clone = page.clone();
                     tokio::spawn(async move { Self::info(page_clone.clone(), popup).await });
-                }
-                Message::ReadyCheck => {
-                    let (write_part, mut read_part) = broadcast::channel(32);
-                    let popup = Select::new(
-                        write_part,
-                        vec!["Yes".to_owned(), "Not yet".to_owned()],
-                        "Do you want to start the game?".to_owned(),
-                    );
-                    tokio::spawn(Self::select(page.clone(), popup));
-
-                    match read_part.recv().await {
-                        Ok(popup::Message::Select(0)) => {
-                            transmit.send(Message::Ready).unwrap();
-                        }
-                        _ => {
-                            transmit.send(Message::NotReady).unwrap();
-                        }
-                    }
-                }
-                Message::Sync(player) => {
-                    let hand = AustraliaPlayer::new().set_cards(player.get_hand());
-
-                    let mut discard = player.get_discard();
-                    discard.extend(player.get_show());
-                    let discard = AustraliaPlayer::new().set_cards(discard);
-                    page.write().await.main_page().reassign_hand(hand);
-                    page.write().await.main_page().reassign_show(discard);
-                    transmit.send(Message::Ok).unwrap();
-                }
-                Message::ScoreActivityQuery(options) => {
-                    let (write_part, mut read_part) = broadcast::channel(32);
-                    let num_options = options.len();
-                    // Cloning here is fin since the vector is small
-                    let mut selectable: Vec<String> =
-                        AustralianActivity::to_string_vec(options.clone());
-                    selectable.push("Do not score anything".to_owned());
-                    let popup = Select::new(
-                        write_part,
-                        selectable,
-                        "What activity do you want to score this round?".to_owned(),
-                    );
-                    tokio::spawn(Self::select(page.clone(), popup));
-                    loop {
-                        match read_part.recv().await {
-                            Ok(popup::Message::Select(x)) => {
-                                transmit
-                                    .send(Message::ScoreActivity(match x < num_options - 1 {
-                                        true => Some(options[x]),
-                                        false => None,
-                                    }))
-                                    .unwrap();
-                                return;
-                            }
-                            _ => {
-                                continue;
-                            }
-                        }
-                    }
                 }
                 Message::Exit => {
                     // Does not matter if this produces an error the program is shutting down

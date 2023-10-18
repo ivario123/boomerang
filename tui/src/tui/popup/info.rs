@@ -28,6 +28,9 @@ impl Popup for Info {
     fn subscribe(&mut self) -> broadcast::Receiver<Message> {
         self.channel.subscribe()
     }
+    fn exit(&mut self) {
+        let _ = self.channel.send(Message::Close);
+    }
 }
 impl TuiPage for Info {
     fn draw<B: ratatui::prelude::Backend>(
@@ -81,11 +84,10 @@ impl TuiPage for Info {
 impl EventApi for Info {
     fn handle_input(&mut self, control: Controls) {
         match control {
-            Controls::Enter => {
+            _ => {
                 self.channel.send(Message::Close).unwrap();
                 info!("Closing the popup");
             }
-            _ => {}
         };
     }
 }

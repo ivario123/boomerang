@@ -32,6 +32,7 @@ impl GameState for ShowCard {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        info!("State : {:?}",self);
         let mut actions = Vec::new();
         let mut request = |event: Event| {
             for player in players {
@@ -63,7 +64,7 @@ impl GameState for ShowCard {
                         );
                         actions.push(Action::new(
                             other_player.id as usize,
-                            Event::ShowPile(player.id, player.show_pile.clone()),
+                            Event::ShowPile(player.id, player.show_pile.clone(),player.publicly_visited()),
                         ));
                     }
                 }

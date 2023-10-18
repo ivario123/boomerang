@@ -15,6 +15,7 @@ use rules::{cards::AustraliaCard, AustraliaPlayer, Event};
 use server::engine;
 use std::fs::File;
 use std::io::Write;
+use tokio::sync::broadcast::error::SendError;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -176,10 +177,10 @@ async fn manage_event(
                 }
                 Event::Show(ret)
             }
-            Event::ShowPile(idx, cards) => {
+            Event::ShowPile(idx, cards, visited) => {
                 info!("Server sent ShowPile({:?},{:?})", idx, cards);
                 writer
-                    .send(Message::ShowOtherHand(idx.into(), cards))
+                    .send(Message::ShowOtherHand(idx.into(), cards, visited))
                     .unwrap();
                 continue;
             }
@@ -194,7 +195,17 @@ async fn manage_event(
                 continue;
             }
             Event::Sync(player) => {
-                writer.send(Message::Sync(player)).unwrap();
+                loop {
+                    match writer.send(Message::Sync(player.clone())) {
+                        Ok(_) => break,
+                        Err(_) => {
+                            error!(
+                                "Frontend managed must have crashed silently the channel is closed"
+                            );
+                            return;
+                        }
+                    }
+                }
                 loop {
                     warn!("Waiting for message from frontend");
                     match feedback_reader.recv().await {
@@ -244,7 +255,7 @@ async fn player_main() {
     let (writer, reader) = tokio::sync::broadcast::channel::<Message>(32);
     let (feedback_writer, feedback_reader) = tokio::sync::broadcast::channel::<Message>(32);
 
-    {
+    let join_handle = {
         let mainpage = DefaultMainPage::new();
         let mappage = DefaultTuiMap::new();
         let ui = Arc::new(TuiDefaults::init(mainpage, mappage));
@@ -252,8 +263,8 @@ async fn player_main() {
         let ui_ref_clone = ui.clone();
         tokio::spawn(async move {
             TuiDefaults::start(ui_ref_clone).await;
-        });
-    }
+        })
+    };
 
     let stream = match TcpStream::connect("127.0.0.1:2047").await {
         Ok(val) => val,
@@ -269,6 +280,7 @@ async fn player_main() {
         manage_event(writer, feedback_reader, broadcast_receiver, write_part).await
     });
     info!("Started player");
+    join_handle.await.unwrap();
     handle.await.unwrap();
 }
 

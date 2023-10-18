@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use log::info;
+
 use crate::{
     engine::rules::{Action, Error, New, Received},
     rules::{Event, GameMetaData},
@@ -13,19 +15,19 @@ pub enum Direction {
     Backward,
 }
 
-impl<Next: GameState + Send + Sync+From<GameMetaData>> PassHand<Next> {
+impl<Next: GameState + Send + Sync + From<GameMetaData>> PassHand<Next> {
     pub fn new(state: GameMetaData, direction: Direction) -> Self {
         Self {
             state,
             pending: Vec::new(),
             requested: false,
             direction: direction,
-            next:PhantomData,
+            next: PhantomData,
         }
     }
 }
 
-impl<Next: GameState + Send + Sync+From<GameMetaData>+'static> GameState for PassHand<Next> {
+impl<Next: GameState + Send + Sync + From<GameMetaData> + 'static> GameState for PassHand<Next> {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,
@@ -34,6 +36,7 @@ impl<Next: GameState + Send + Sync+From<GameMetaData>+'static> GameState for Pas
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        info!("State : {:?}", self);
         let mut actions = Vec::new();
         // If we have any out standing messages await these
         if self.pending.len() != 0 {
@@ -45,8 +48,8 @@ impl<Next: GameState + Send + Sync+From<GameMetaData>+'static> GameState for Pas
             // Sleep server for a long time since there is noting to do
             return (tokio::time::Duration::from_secs(20), actions, None);
         }
-        self.state.circulate(self.direction);
         if !self.requested {
+            self.state.circulate(self.direction);
             for player in &mut self.state.players {
                 actions.push(Action::new(
                     player.id as usize,
@@ -55,17 +58,16 @@ impl<Next: GameState + Send + Sync+From<GameMetaData>+'static> GameState for Pas
                 self.pending.push(player.id);
             }
             self.requested = true;
-            (tokio::time::Duration::from_secs(1), actions, None)
-        } else {
-            (
-                tokio::time::Duration::from_secs(1),
-                actions,
-                Some(Box::new(Syncing::new(
-                    self.state.clone(),
-                    Box::new(Next::from(self.state.clone())),
-                ))),
-            )
+            return (tokio::time::Duration::from_secs(1), actions, None);
         }
+        (
+            tokio::time::Duration::from_secs(1),
+            actions,
+            Some(Box::new(Syncing::new(
+                self.state.clone(),
+                Box::new(Next::from(self.state.clone())),
+            ))),
+        )
     }
 
     fn register_message(

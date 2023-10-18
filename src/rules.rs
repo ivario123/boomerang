@@ -28,7 +28,7 @@ pub enum Event {
     ShowRequest,
     /// Shows the given card to the other players and discards it.
     Show(usize),
-    ShowPile(u8, Vec<AustraliaCard>),
+    ShowPile(u8, Vec<AustraliaCard>,Vec<char>),
     DiscardRequest,
     /// Discards the card in the players hand at that given index.
     Discard(usize),
@@ -198,7 +198,7 @@ impl Scoring {
     }
     fn score_activity(
         mut self,
-        player: &AustraliaPlayer,
+        player: &mut AustraliaPlayer,
         activity: Option<AustralianActivity>,
     ) -> Self {
         if let None = activity {
@@ -208,6 +208,18 @@ impl Scoring {
         cards.extend(player.get_show());
         cards.extend(player.get_hand());
         let mut total = 0;
+        if let Some(activity) = activity {
+            let mut target_idx = None;
+            for (idx, el) in player.un_scored_activity.iter().enumerate() {
+                if *el == activity {
+                    target_idx = Some(idx);
+                    break;
+                }
+            }
+            if let Some(idx) = target_idx {
+                player.un_scored_activity.remove(idx);
+            }
+        }
         for card in cards {
             if card.activity() == activity {
                 total += 1;
@@ -274,6 +286,7 @@ impl GameMetaData {
         self.round_counter == 3
     }
     pub fn new_round(&mut self) {
+        self.deck = AustraliaDeck::default();
         self.round_counter += 1;
         for player in self.players.iter_mut() {
             player.new_round();
@@ -315,6 +328,28 @@ impl AustraliaPlayer {
     fn hand_empty(&self) -> bool {
         self.hand.len() == 0
     }
+
+    pub fn privately_visited(&mut self) -> Vec<char> {
+        let mut ret = self.publicly_visited();
+        for el in self.get_discard() {
+            if !ret.contains(&el.to_char()) {
+                ret.push(el.to_char());
+            }
+        }
+        ret
+    }
+
+    pub fn publicly_visited(&self) -> Vec<char> {
+        let cards = self.get_show();
+        let mut ret = self.get_visited();
+        for el in cards {
+            if !ret.contains(&el.to_char()) {
+                ret.push(el.to_char());
+            }
+        }
+        ret
+    }
+
     pub fn new_round(&mut self) {
         let mut cards = self.get_discard();
         cards.extend(self.get_show());

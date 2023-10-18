@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{
     engine::rules::{Action, Error, New, Received},
     rules::{Event, GameMetaData},
@@ -24,6 +26,7 @@ impl GameState for DiscardCard {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        info!("State : {:?}",self);
         let mut actions = Vec::new();
         let mut request = |event: Event| {
             for player in players {

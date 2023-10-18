@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{
     engine::rules::{Action, Error, New, Received},
     rules::{states::Syncing, Event, GameMetaData},
@@ -31,7 +33,8 @@ impl GameState for DealingCards {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
-        println!("In dealing state");
+
+        info!("State : {:?}",self);
         let mut actions = Vec::new();
 
         // If we have any out standing messages await these

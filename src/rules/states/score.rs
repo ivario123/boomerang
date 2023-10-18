@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{
     engine::rules::{Action, Error, New, Received},
     rules::{Event, GameMetaData},
@@ -31,6 +33,7 @@ impl GameState for Scoring {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        info!("State : {:?}",self);
         let mut actions = Vec::new();
         // If we have any out standing messages await these
         if self.pending.len() != 0 {

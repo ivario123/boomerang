@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{engine::rules::{Action, New, Error, Received}, rules::Event};
 
 use super::{GameState, WaitingForPlayers, DealingCards};
@@ -21,6 +23,7 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
+        info!("State : {:?}",self);
         println!("In waiting state");
         let mut actions = Vec::new();
         // We need at least 2 players

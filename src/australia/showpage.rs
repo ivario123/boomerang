@@ -5,11 +5,13 @@ use log::info;
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
     style::Color,
-    Frame,
+    widgets::canvas::Canvas,
+    Frame, symbols::Marker,
 };
 use tokio::sync::{broadcast, Mutex};
 
 use tui::{
+    maps::{boomerang_australia::Map, Map as MapTrait,sites::Region},
     tui::{
         controls::{Controls, EventApi},
         showpage::ShowPage as ShowPageTrait,
@@ -28,13 +30,17 @@ pub struct ShowPage<C: Card, H: Hand<C> + CardArea<C>> {
     discard_pile: H,
     card: PhantomData<C>,
     title: String,
+    map: Map,
+    visited:Vec<char>
 }
 impl<C: Card, H: Hand<C> + CardArea<C>> ShowPage<C, H> {
     const COUNT: usize = 4;
-    pub fn new(uid: usize, showing: H) -> Self {
+    pub fn new(uid: usize, showing: H, visited: Vec<char>) -> Self {
         Self {
             discard_pile: showing,
+            map: Map::default(),
             card: PhantomData,
+            visited,
             title: format!("Player {}", uid).to_owned(),
         }
     }
@@ -74,6 +80,30 @@ impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> TuiPage for ShowPage<Aust
             .split(block);
         self.discard_pile
             .draw(frame, layout[0], "Hand", Color::White);
+
+        let canvas = Canvas::default()
+            .x_bounds([0.0, Map::WIDTH as f64])
+            .y_bounds([0.0, Map::HEIGHT as f64])
+            .paint(|context| {
+                let mut sites = self.map.render(context);
+
+                let mut region = <Map as MapTrait>::REGION::default();
+                let mut offset = 0;
+                let _ = sites.iter_mut().enumerate().for_each(|(idx, site)| {
+                    if self.visited.contains(&site.get_id()) {
+                        site.complete();
+                    }
+                    let new_region = site.region();
+                    if region != new_region {
+                        region = new_region;
+                        offset = 0;
+                    }
+                    site.clone().render(context, (offset * 10) as f64);
+                    offset += 1;
+                });
+            })
+            .marker(Marker::Dot);
+        frame.render_widget(canvas, layout[2])
     }
     fn set_title(&mut self, title: String) {
         self.title = title

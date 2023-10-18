@@ -150,7 +150,7 @@ impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> TuiPage
     for DefaultMainPage<AustraliaCard, H>
 {
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect) {
-        let layout = Layout::default()
+        let layout: std::rc::Rc<[Rect]> = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
             .constraints(
@@ -167,8 +167,6 @@ impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> TuiPage
             false => (Color::White, Color::DarkGray),
         };
         self.hand.draw(frame, layout[0], "Hand", hand);
-
-        // We should fill in the middle box with some prompt like what action is requested at the moment
 
         self.discard_pile.draw(frame, layout[2], "Board", board);
     }
