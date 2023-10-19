@@ -610,16 +610,17 @@ impl GameMetaData {
         totals.sort_by(|a, b| {
             let (a_tot, b_tot) = (a.1.total_score(), b.1.total_score());
             if a_tot > b_tot {
-                std::cmp::Ordering::Greater
+                std::cmp::Ordering::Less
             } else if a_tot == b_tot {
                 match a.1.throw_catch() > b.1.throw_catch() {
-                    true => std::cmp::Ordering::Greater,
-                    false => std::cmp::Ordering::Less,
+                    true => std::cmp::Ordering::Less,
+                    false => std::cmp::Ordering::Greater,
                 }
             } else {
-                std::cmp::Ordering::Less
+                std::cmp::Ordering::Greater
             }
         });
+        println!("{:?}", totals);
         totals
     }
     #[cfg(test)]
@@ -863,19 +864,68 @@ mod tests {
             player.show(&0).unwrap();
         }
 
-        // Create a list of activities to score (we'll score "Sightseeing")
         let activities_to_score = vec![
             (0, Some(AustralianActivity::IndigenousCulture)),
             (1, Some(AustralianActivity::IndigenousCulture)),
         ];
 
-        // Calculate the activities score within the GameMetaData
         meta.score_round(&activities_to_score);
 
-        // Verify the scoring for each player
         for player in meta.players.iter() {
             println!("{:?}", player);
-            assert_eq!(player.scoring[0].activity, 10); // Only "Sightseeing" activity is scored
+            assert_eq!(player.scoring[0].activity, 10);
+        }
+    }
+    #[test]
+    fn test_12() {
+        let mut meta = GameMetaData::new(&[0, 1, 2, 3]);
+        let scores = vec![
+            Scoring {
+                throw_catch: 10,
+                tourist_sites: 21,
+                collections: 11,
+                animals: 1,
+                activity: 2,
+                completed_regions: Vec::new(),
+            },
+            Scoring {
+                throw_catch: 11,
+                tourist_sites: 20,
+                collections: 11,
+                animals: 1,
+                activity: 2,
+                completed_regions: Vec::new(),
+            },
+            Scoring {
+                throw_catch: 8,
+                tourist_sites: 20,
+                collections: 11,
+                animals: 1,
+                activity: 2,
+                completed_regions: Vec::new(),
+            },
+            Scoring {
+                throw_catch: 9,
+                tourist_sites: 20,
+                collections: 11,
+                animals: 1,
+                activity: 2,
+                completed_regions: Vec::new(),
+            },
+        ];
+        // Simulate four rounds of scoring
+        for _ in 0..4 {
+            for (player, score) in meta.players.iter_mut().zip(scores.clone()) {
+                player.add_score(score.clone());
+                player.add_score(score.clone());
+                player.add_score(score.clone());
+                player.add_score(score.clone());
+            }
+        }
+
+        let ranking = meta.rank();
+        for ((idx, _), target) in ranking.iter().zip(vec![1, 0, 3, 2]) {
+            assert_eq!(*idx, target);
         }
     }
 }

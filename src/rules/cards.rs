@@ -19,7 +19,7 @@ pub trait Card<C: Collection, A: Animal>: std::fmt::Debug {
     fn region(&self) -> AustralianRegion;
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize,PartialEq, Deserialize, Clone)]
 pub struct AustraliaDeck {
     deck: Vec<AustraliaCard>,
 }
@@ -579,5 +579,24 @@ card! {
         region: Tasmania
         animal: Kangaroos
         activity: Swimming
+    }
+}
+
+
+
+#[cfg(test)]
+mod test{
+    use super::AustraliaDeck;
+
+    #[test]
+    fn test_3(){
+        let deck1 = AustraliaDeck::default();
+        let mut deck2 = AustraliaDeck::default();
+        deck2.shuffle();
+        assert_ne!(deck1,deck2);
+    }
+    #[test]
+    fn test_2() {
+        assert_eq!(AustraliaDeck::default().cards().len(), 28)
     }
 }

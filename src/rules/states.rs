@@ -130,7 +130,7 @@ mod test {
     use super::{pass::Direction, DealingCards, GameState, WaitingForPlayers};
 
     #[test]
-    fn test_player_count_range_in_waiting_state_2_players() {
+    fn test_1_2() {
         let players = vec![1, 2];
         let expected_result = (
             vec![
@@ -143,7 +143,7 @@ mod test {
     }
 
     #[test]
-    fn test_player_count_range_in_waiting_state_3_players() {
+    fn test_1_3() {
         let players = vec![1, 2, 3];
         let expected_result = (
             vec![
@@ -157,7 +157,7 @@ mod test {
     }
 
     #[test]
-    fn test_player_count_range_in_waiting_state_4_players() {
+    fn test_1_4() {
         let players = vec![1, 2, 3, 4];
         let expected_result = (
             vec![
@@ -172,7 +172,7 @@ mod test {
     }
 
     #[test]
-    fn test_player_count_range_in_waiting_state_5_players() {
+    fn test_1_5() {
         let players = vec![1, 2, 3, 4, 5];
         let expected_result = (
             vec![
@@ -187,21 +187,6 @@ mod test {
         test_waiting_state_with_players(players, expected_result);
     }
 
-    fn test_waiting_state_with_players(
-        players: Vec<usize>,
-        expect: (Vec<Action<New, Event>>, Option<Box<dyn GameState>>),
-    ) {
-        // Create a new WaitingForPlayers state for each test case.
-        let mut waiting_state = WaitingForPlayers::<DealingCards>::new(None);
-
-        let (_duration, actions, _next_state) = waiting_state.get_next_action(&players);
-        assert_eq!(expect.0, actions);
-        // Assertions here...
-    }
-    #[test]
-    fn test_deck_size() {
-        assert_eq!(AustraliaDeck::default().cards().len(), 28)
-    }
     #[test]
     fn deal() {
         assert_eq!(AustraliaDeck::default().cards().len(), 28)
@@ -211,18 +196,18 @@ mod test {
     ///
     /// This test will only pass if the number of cards dealt to each players is 7
     #[test]
-    fn test_deal() {
+    fn test_4() {
         deal_all();
     }
     #[test]
-    fn discard_deal() {
+    fn test_4_and_5() {
         let state = deal_all();
         let state = sync(state);
         discard_card(state);
     }
 
     #[test]
-    fn deal_discard_show() {
+    fn test_4_thru_7() {
         let state = deal_all();
         let state = sync(state);
         let state = discard_card(state);
@@ -232,7 +217,7 @@ mod test {
     }
 
     #[test]
-    fn deal_discard_show_repeat() {
+    fn test_4_thru_8() {
         let state = deal_all();
         let state = sync(state);
         let mut state = discard_card(state);
@@ -244,7 +229,7 @@ mod test {
     }
 
     #[test]
-    fn deal_discard_show_score() {
+    fn test_4_thru_12() {
         let mut state = deal_all();
         for i in 0..4 {
             if i != 0 {
@@ -289,6 +274,15 @@ mod test {
     // ==============================================================================
     //                              Helpers
     // ==============================================================================
+    fn test_waiting_state_with_players(
+        players: Vec<usize>,
+        expect: (Vec<Action<New, Event>>, Option<Box<dyn GameState>>),
+    ) {
+        let mut waiting_state = WaitingForPlayers::<DealingCards>::new(None);
+
+        let (_duration, actions, _next_state) = waiting_state.get_next_action(&players);
+        assert_eq!(expect.0, actions);
+    }
     fn hands(players: &Vec<AustraliaPlayer>) -> Vec<Vec<AustraliaCard>> {
         let mut ret = Vec::new();
         for player in players {
@@ -604,48 +598,6 @@ mod test {
 
         next_state.unwrap()
     }
-    /*
-    fn show_pile(mut current_state: Box<dyn GameState>) -> Box<dyn GameState> {
-        let players = vec![0, 1, 2, 3];
-        let mut next_state = None;
-        let mut show_counter = 0;
-
-        while let None = next_state {
-            let (_duration, actions, state) = current_state.get_next_action(&players);
-            println!("Requested actions: {:?}", actions);
-
-            match state {
-                None => {
-                    for action in actions.iter() {
-                        match action.action() {
-                            Event::ShowPile(_, _, _) => {
-                                show_counter += 1;
-                                // Simulate player response
-                                let response = Event::Accept; // Simulate showing a card at index 0
-                                current_state
-                                    .register_response((
-                                        response,
-                                        &(action.clone()).transition().transition(),
-                                    ))
-                                    .unwrap();
-                            }
-                            _ => {
-                                assert!(false);
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-
-            next_state = state;
-        }
-
-        assert_eq!(show_counter, 4);
-
-        next_state.unwrap()
-    }
-    */
 
     fn game_end(mut current_state: Box<dyn GameState>) {
         let players = vec![0, 1, 2, 3];
