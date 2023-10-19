@@ -1,12 +1,9 @@
-use std::marker::PhantomData;
-
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
     symbols::Marker,
     widgets::canvas::Canvas,
     Frame,
 };
-use tokio::sync::Mutex;
 
 use tui::{
     maps::{self, sites::Region, Map},
@@ -69,7 +66,7 @@ where
 
                 let mut region = <M as Map>::REGION::default();
                 let mut offset = 0;
-                let _ = sites.iter_mut().enumerate().for_each(|(idx, site)| {
+                let _ = sites.iter_mut().enumerate().for_each(|(_idx, site)| {
                     if self.visited.contains(&site.get_id()) {
                         site.complete();
                     }

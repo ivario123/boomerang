@@ -1,8 +1,5 @@
 use log::error;
-use rand::{
-    seq::{IteratorRandom, SliceRandom},
-    thread_rng,
-};
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 
 pub trait Collection {
@@ -43,6 +40,7 @@ impl AustraliaDeck {
             }
         }
     }
+    #[cfg(test)]
     pub fn cards(&mut self) -> Vec<AustraliaCard> {
         self.deck.clone()
     }
@@ -73,7 +71,7 @@ macro_rules! regions {
         pub enum AustralianRegion {
             $($variant,)*
         }
-
+        #[allow(dead_code)]
         impl AustralianRegion {
             pub fn to_vec() -> Vec<AustralianRegion> {
                 vec![$(AustralianRegion::$variant,)*]
@@ -162,6 +160,7 @@ macro_rules! collections {
                 }
             }
         }
+        #[allow(dead_code)]
         impl AustralianCollection {
             pub fn to_vec() -> Vec<AustralianCollection> {
                 vec![$(AustralianCollection::$variant,)*]
@@ -204,6 +203,7 @@ macro_rules! animals {
                 }
             }
         }
+        #[allow(dead_code)]
         impl AustralianAnimal {
             pub fn to_vec() -> Vec<AustralianAnimal> {
                 vec![$(AustralianAnimal::$variant,)*]
@@ -318,6 +318,8 @@ macro_rules! card {
                     $(
                         AustraliaCard::$name => {
                             $(return Some(AustralianCollection::$collection);)?
+
+                            #[allow(unreachable_code)]
                             None
                         },
                     )+
@@ -329,6 +331,7 @@ macro_rules! card {
                     $(
                         AustraliaCard::$name => {
                             $(return Some(AustralianAnimal::$animal);)?
+                            #[allow(unreachable_code)]
                             None
                         },
                     )+
@@ -340,6 +343,7 @@ macro_rules! card {
                     $(
                         AustraliaCard::$name => {
                             $(return Some(AustralianActivity::$activity);)?
+                            #[allow(unreachable_code)]
                             None
                         },
                     )+

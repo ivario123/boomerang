@@ -5,9 +5,9 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{DealingCards, GameState, ReprMetaData, WaitingForPlayers};
+use super::{DealingCards, GameState, AsMetaData, WaitingForPlayers};
 
-impl<Next: ReprMetaData + Send + 'static> WaitingForPlayers<Next> {
+impl<Next: AsMetaData + Send + 'static> WaitingForPlayers<Next> {
     pub fn new(next_state: Option<Box<Next>>) -> Self {
         Self {
             ready: Vec::new(),
@@ -17,7 +17,7 @@ impl<Next: ReprMetaData + Send + 'static> WaitingForPlayers<Next> {
     }
 }
 
-impl<Next: ReprMetaData + Send + 'static> GameState for WaitingForPlayers<Next> {
+impl<Next: AsMetaData + Send + 'static> GameState for WaitingForPlayers<Next> {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,

@@ -5,7 +5,7 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{pass::Direction, DiscardCard, GameState, PassHand, ReprMetaData, ShowCard};
+use super::{pass::Direction, DiscardCard, GameState, PassHand, AsMetaData, ShowCard};
 
 impl DiscardCard {
     pub fn new(state: GameMetaData) -> Self {
@@ -108,6 +108,6 @@ impl GameState for DiscardCard {
         }
     }
     fn metadata(&mut self) -> Option<&mut GameMetaData> {
-        Some(ReprMetaData::metadata(self))
+        Some(AsMetaData::metadata(self))
     }
 }

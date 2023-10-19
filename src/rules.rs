@@ -1,22 +1,20 @@
 pub mod cards;
 pub mod states;
-use std::path::MAIN_SEPARATOR;
 
 use serde::{Deserialize, Serialize};
 use server::engine::{
     event::{BackendEvent, GameEvent},
-    player::{self, Player},
     rules::{Action, Completed, Error, Instantiable, New, Received, RuleEngine},
 };
 
-use crate::australia::mainpage::CardArea;
+use crate::australia::main_page::CardArea;
 
 use self::{
     cards::{
         Animal, AustraliaCard, AustraliaDeck, AustralianActivity, AustralianAnimal,
         AustralianRegion, Card, Collection,
     },
-    states::{pass::Direction, DealingCards, GameState, ReprMetaData, WaitingForPlayers},
+    states::{pass::Direction, DealingCards, GameState, WaitingForPlayers},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -322,7 +320,8 @@ impl GameMetaData {
                 .score_throw_catch(player)
                 .score_collections(player)
                 .score_regions(player, &self.non_completed_regions)
-                .score_activity(player, activity);
+                .score_activity(player, activity)
+                .score_animals(player);
 
             for el in scoring.completed_regions() {
                 if !completed.contains(&el) {
@@ -567,7 +566,7 @@ impl GameMetaData {
     }
     /// Circulates the players hands in between them
     fn circulate(&mut self, direction: Direction) {
-        let players = match direction {
+        let _players = match direction {
             Direction::Forward => {
                 let mut prev_hand = self.players.last().unwrap().hand.clone();
                 for player in self.players.iter_mut() {
@@ -611,7 +610,7 @@ impl GameMetaData {
         });
         totals
     }
-
+    #[cfg(test)]
     pub fn hands(&mut self) -> Vec<AustraliaPlayer> {
         self.players.clone()
     }
@@ -623,15 +622,6 @@ impl GameMetaData {
             }
         }
         ret
-    }
-    fn hands_empty(&self) -> bool {
-        let mut empty = true;
-        for player in &self.players {
-            if !player.hand_empty() {
-                empty = false;
-            }
-        }
-        empty
     }
 }
 
@@ -692,7 +682,3 @@ impl<const CAPACITY: usize, const MIN_PLAYERS: usize> Instantiable
         }
     }
 }
-
-
-
-

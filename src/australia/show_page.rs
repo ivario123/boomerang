@@ -1,20 +1,18 @@
-use std::{borrow::BorrowMut, marker::PhantomData};
+use std::marker::PhantomData;
 
-use async_std::channel;
-use log::info;
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
     style::Color,
+    symbols::Marker,
     widgets::canvas::Canvas,
-    Frame, symbols::Marker,
+    Frame,
 };
-use tokio::sync::{broadcast, Mutex};
 
 use tui::{
-    maps::{boomerang_australia::Map, Map as MapTrait,sites::Region},
+    maps::{boomerang_australia::Map, sites::Region, Map as MapTrait},
     tui::{
         controls::{Controls, EventApi},
-        showpage::ShowPage as ShowPageTrait,
+        show_page::ShowPage as ShowPageTrait,
         TuiPage,
     },
     ui::{Card, Hand},
@@ -22,19 +20,16 @@ use tui::{
 
 use crate::rules::cards::AustraliaCard;
 
-use super::{mainpage::CardArea, Message};
-
-use std::panic;
+use super::main_page::CardArea;
 
 pub struct ShowPage<C: Card, H: Hand<C> + CardArea<C>> {
     discard_pile: H,
     card: PhantomData<C>,
     title: String,
     map: Map,
-    visited:Vec<char>
+    visited: Vec<char>,
 }
 impl<C: Card, H: Hand<C> + CardArea<C>> ShowPage<C, H> {
-    const COUNT: usize = 4;
     pub fn new(uid: usize, showing: H, visited: Vec<char>) -> Self {
         Self {
             discard_pile: showing,
@@ -89,7 +84,7 @@ impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> TuiPage for ShowPage<Aust
 
                 let mut region = <Map as MapTrait>::REGION::default();
                 let mut offset = 0;
-                let _ = sites.iter_mut().enumerate().for_each(|(idx, site)| {
+                let _ = sites.iter_mut().enumerate().for_each(|(_idx, site)| {
                     if self.visited.contains(&site.get_id()) {
                         site.complete();
                     }

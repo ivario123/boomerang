@@ -36,7 +36,7 @@ impl TuiPage for Info {
     fn draw<B: ratatui::prelude::Backend>(
         &mut self,
         frame: &mut ratatui::Frame<B>,
-        block: ratatui::prelude::Rect,
+        _block: ratatui::prelude::Rect,
     ) {
         let block = Block::default().borders(Borders::ALL);
         let paragraph = Paragraph::new(self.title.blue())

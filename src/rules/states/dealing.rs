@@ -5,7 +5,7 @@ use crate::{
     rules::{states::Syncing, Event, GameMetaData},
 };
 
-use super::{DealingCards, DiscardCard, GameState, ReprMetaData};
+use super::{DealingCards, DiscardCard, GameState, AsMetaData};
 
 impl DealingCards {
     pub fn new(players: &[usize]) -> Self {
@@ -113,6 +113,6 @@ impl GameState for DealingCards {
     }
 
     fn metadata(&mut self) -> Option<&mut GameMetaData> {
-        Some(ReprMetaData::metadata(self))
+        Some(AsMetaData::metadata(self))
     }
 }

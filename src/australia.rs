@@ -1,18 +1,16 @@
-pub mod mainpage;
-pub mod mappage;
-pub mod showpage;
+pub mod main_page;
+pub mod map_page;
+pub mod show_page;
 
-use async_std::channel::{self, Recv};
 use log::{error, info};
 use ratatui::{
-    layout,
     prelude::{Backend, Constraint, Direction, Layout, Rect},
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
 use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio::sync::{broadcast, RwLock};
 use tui::{
     maps::boomerang_australia::Map,
     tui::{
@@ -23,17 +21,14 @@ use tui::{
     ui::{Card, Hand, UiElement, UiMessage},
 };
 
-use crate::{
-    read_event,
-    rules::{
-        cards::{AustraliaCard, AustralianActivity, Card as CardTrait},
-        AustraliaPlayer, Scoring,
-    },
+use crate::rules::{
+    cards::{AustraliaCard, AustralianActivity, Card as CardTrait},
+    AustraliaPlayer, Scoring,
 };
 
 use self::{
-    mainpage::{CardArea, DefaultMainPage},
-    showpage::ShowPage,
+    main_page::{CardArea, DefaultMainPage},
+    show_page::ShowPage,
 };
 
 #[derive(Debug, Clone)]
@@ -82,14 +77,14 @@ where
     }
 
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect, title: &str, border: Color) {
-        let disp_ptr = *self.card_ptr();
-        let (cards, (last, count)) = self.get_cards::<4>(disp_ptr);
+        let display_ptr = *self.card_ptr();
+        let (cards, (last, count)) = self.get_cards::<4>(display_ptr);
 
         let card_area = Block::default()
             .title(format!(
                 "{} (showing {} - {}/{})",
                 title,
-                disp_ptr + 1,
+                display_ptr + 1,
                 last,
                 count
             ))
@@ -109,7 +104,7 @@ where
                 .title(card.get_name())
                 .borders(Borders::all())
                 .border_style(
-                    Style::default().fg(match (idx + last - num_cards) == disp_ptr {
+                    Style::default().fg(match (idx + last - num_cards) == display_ptr {
                         true => Color::Yellow,
                         false => Color::Gray,
                     }),
@@ -149,7 +144,7 @@ where
 pub struct ScoreList(Vec<Scoring>);
 
 impl EventApi for ScoreList {
-    fn handle_input(&mut self, control: tui::tui::controls::Controls) {
+    fn handle_input(&mut self, _control: tui::tui::controls::Controls) {
         todo!()
     }
 }
@@ -214,18 +209,27 @@ impl TuiPage for ScoreList {
         paragraphs.push(Paragraph::new(format!("Throw Catch : {:?}", throw_catch)));
         paragraphs.push(Paragraph::new(format!(
             "tourist_sites : {:?}",
-            tourist_sites
+            self.format_elements(tourist_sites)
         )));
-        paragraphs.push(Paragraph::new(format!("Collections : {:?}", collections)));
-        paragraphs.push(Paragraph::new(format!("Animals : {:?}", animals)));
-        paragraphs.push(Paragraph::new(format!("Activity : {:?}", activity)));
+        paragraphs.push(Paragraph::new(format!(
+            "Collections : {:?}",
+            self.format_elements(collections)
+        )));
+        paragraphs.push(Paragraph::new(format!(
+            "Animals : {:?}",
+            self.format_elements(animals)
+        )));
+        paragraphs.push(Paragraph::new(format!(
+            "Activity : {:?}",
+            self.format_elements(activity)
+        )));
         frame.render_widget(score_area, block);
         for (block, paragraph) in layout.iter().zip(paragraphs) {
             frame.render_widget(paragraph, *block);
         }
     }
 
-    fn set_title(&mut self, title: String) {}
+    fn set_title(&mut self, _title: String) {}
 
     fn get_title(&self) -> &str {
         "Score"
@@ -236,8 +240,8 @@ impl TuiPage for ScoreList {
 impl TuiMonitor<Message, Info, Select>
     for Tui<
         DefaultMainPage<AustraliaCard, AustraliaPlayer>,
-        mappage::DefaultTuiMap<Map, ScoreList>,
-        crate::australia::showpage::ShowPage<AustraliaCard, AustraliaPlayer>,
+        map_page::DefaultTuiMap<Map, ScoreList>,
+        crate::australia::show_page::ShowPage<AustraliaCard, AustraliaPlayer>,
         Info,
         Select,
     >
@@ -266,7 +270,7 @@ impl TuiMonitor<Message, Info, Select>
         }
     }
     async fn info(page: Arc<RwLock<Box<Self>>>, mut popup: Info) {
-        info!("Showing info pupup");
+        info!("Showing info pup-up");
         page.write().await.cleanup_popup();
         while let true = page.write().await.showing_popup() {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -314,7 +318,7 @@ impl TuiMonitor<Message, Info, Select>
                 // -------------------------            Queries           -------------------------
                 Message::DiscardQuery => {
                     info!("Trying to show waiting for discard dialog");
-                    let (write_part, read_part) = broadcast::channel(32);
+                    let (write_part, _read_part) = broadcast::channel(32);
                     let popup = Info::new(
                         write_part,
                         "Now your hand is full, time to discard a card".to_owned(),
@@ -404,7 +408,7 @@ impl TuiMonitor<Message, Info, Select>
                 // -------------------------            Updates           -------------------------
                 Message::Deal(card) => page.write().await.main_page().add_card(card),
                 Message::ShowOtherHand(uid, cards, visited) => {
-                    let mut new_player = page.write().await.paginate().replace_into(ShowPage::new(
+                    let _new_player = page.write().await.paginate().replace_into(ShowPage::new(
                         uid,
                         AustraliaPlayer::new().set_cards(cards),
                         visited,
@@ -418,7 +422,7 @@ impl TuiMonitor<Message, Info, Select>
                     page.write().await.main_page().reassign_hand(new_hand);
 
                     info!("Trying to show waiting for swapped hands dialog");
-                    let (write_part, read_part) = broadcast::channel(32);
+                    let (write_part, _read_part) = broadcast::channel(32);
                     let popup = Info::new(write_part, "Swapped hands!".to_owned());
                     let page_clone = page.clone();
                     tokio::spawn(async move { Self::info(page_clone.clone(), popup).await });
@@ -449,7 +453,7 @@ impl TuiMonitor<Message, Info, Select>
                 Message::NewRound => {
                     info!("new round");
                     info!("Trying to show new round dialog");
-                    let (write_part, read_part) = broadcast::channel(32);
+                    let (write_part, _read_part) = broadcast::channel(32);
                     let popup = Info::new(write_part, "Starting a new round, score for previous round can be seen on the map page".to_owned());
                     let page_clone = page.clone();
                     tokio::spawn(async move { Self::info(page_clone.clone(), popup).await });
@@ -463,14 +467,14 @@ impl TuiMonitor<Message, Info, Select>
                         }
                     }
                     info!("Trying to show waiting for players dialog");
-                    let (write_part, read_part) = broadcast::channel(32);
+                    let (write_part, _read_part) = broadcast::channel(32);
                     let popup = Info::new(write_part, "Waiting for players".to_owned());
                     let page_clone = page.clone();
                     tokio::spawn(async move { Self::info(page_clone.clone(), popup).await });
                 }
                 Message::Exit => {
                     // Does not matter if this produces an error the program is shutting down
-                    transmit.send(Message::Exit);
+                    let _ = transmit.send(Message::Exit);
                     return;
                 }
                 _ => {}

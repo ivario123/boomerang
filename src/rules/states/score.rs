@@ -5,7 +5,7 @@ use crate::{
     rules::{states::Final, Event, GameMetaData},
 };
 
-use super::{DealingCards, GameState, ReprMetaData, Scoring, Syncing};
+use super::{DealingCards, GameState, AsMetaData, Scoring, Syncing};
 
 impl Scoring {
     pub fn new(state: GameMetaData) -> Self {
@@ -14,7 +14,6 @@ impl Scoring {
             pending: Vec::new(),
             requested: false,
             actions: Vec::new(),
-            informed: false,
         }
     }
 }
@@ -137,6 +136,6 @@ impl GameState for Scoring {
         }
     }
     fn metadata(&mut self) -> Option<&mut GameMetaData> {
-        Some(ReprMetaData::metadata(self))
+        Some(AsMetaData::metadata(self))
     }
 }

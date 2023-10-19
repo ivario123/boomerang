@@ -5,7 +5,7 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{DealingCards, Final, GameState, ReprMetaData, Scoring, Syncing};
+use super::{Final, GameState, AsMetaData};
 
 impl Final {
     pub fn new(state: GameMetaData) -> Self {
@@ -25,7 +25,7 @@ impl From<GameMetaData> for Final {
 impl GameState for Final {
     fn get_next_action(
         &mut self,
-        players: &Vec<usize>,
+        _players: &Vec<usize>,
     ) -> (
         tokio::time::Duration,
         Vec<Action<New, Event>>,
@@ -57,11 +57,11 @@ impl GameState for Final {
 
     fn register_response(
         &mut self,
-        action: (Event, &Action<Received, Event>),
+        _action: (Event, &Action<Received, Event>),
     ) -> Result<Option<Box<dyn GameState>>, Error> {
         Err(Error::UnexpectedResponse)
     }
     fn metadata(&mut self) -> Option<&mut GameMetaData> {
-        Some(ReprMetaData::metadata(self))
+        Some(AsMetaData::metadata(self))
     }
 }

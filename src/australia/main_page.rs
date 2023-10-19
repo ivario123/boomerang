@@ -1,13 +1,12 @@
-use std::{borrow::BorrowMut, marker::PhantomData};
+use std::marker::PhantomData;
 
-use async_std::channel;
 use log::info;
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
     style::Color,
     Frame,
 };
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 
 use tui::{
     tui::{
@@ -20,8 +19,6 @@ use tui::{
 use crate::rules::cards::AustraliaCard;
 
 use super::Message;
-
-use std::panic;
 
 #[derive(Debug)]
 pub enum Error {
@@ -45,19 +42,16 @@ pub struct DefaultMainPage<C: Card, H: Hand<C> + CardArea<C>> {
     card: PhantomData<C>,
     focused: bool,
     title: String,
-    card_disp_ptr: usize,
     feedback_channel: Option<broadcast::Sender<Message>>,
     requested_action: Option<Message>,
 }
 impl<C: Card, H: Hand<C> + CardArea<C>> DefaultMainPage<C, H> {
-    const COUNT: usize = 4;
     pub fn new() -> Self {
         Self {
             hand: H::new(),
             discard_pile: H::new(),
             card: PhantomData,
             title: "Game".to_owned(),
-            card_disp_ptr: 0,
             focused: false,
             feedback_channel: None,
             requested_action: None,
@@ -82,7 +76,7 @@ impl<C: Card, H: Hand<C> + CardArea<C> + std::fmt::Debug> DefaultMainPage<C, H> 
             Some(_) => return Err(Error::PendingAction),
             _ => &mut self.feedback_channel,
         };
-        info!("Enqueued event : {:?} for default mainpage ", event);
+        info!("Enqueued event : {:?} for default main page ", event);
         *pending_event = Some(event);
         *feedback_channel = Some(channel);
         Ok(())

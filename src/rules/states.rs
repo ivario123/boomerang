@@ -33,7 +33,7 @@ pub trait GameState: Send + std::fmt::Debug {
     fn metadata(&mut self) -> Option<&mut GameMetaData>;
 }
 
-pub trait ReprMetaData: GameState {
+pub trait AsMetaData: GameState {
     fn metadata(&mut self) -> &mut GameMetaData;
 }
 #[derive(Debug)]
@@ -44,7 +44,7 @@ pub struct DealingCards {
     validated: Vec<usize>,
 }
 #[derive(Debug)]
-pub struct WaitingForPlayers<Next: ReprMetaData + Send> {
+pub struct WaitingForPlayers<Next: AsMetaData + Send> {
     ready: Vec<u8>,
     pending_ready: Vec<u8>,
     next_state: Option<Box<Next>>,
@@ -57,7 +57,7 @@ pub struct DiscardCard {
     requested: bool,
 }
 #[derive(Debug)]
-pub struct PassHand<Next: ReprMetaData + Send + Sync + From<GameMetaData>> {
+pub struct PassHand<Next: AsMetaData + Send + Sync + From<GameMetaData>> {
     state: GameMetaData,
     pending: Vec<u8>,
     requested: bool,
@@ -78,11 +78,10 @@ pub struct Scoring {
     pending: Vec<u8>,
     requested: bool,
     actions: Vec<(u8, Option<AustralianActivity>)>,
-    informed: bool,
 }
 
 #[derive(Debug)]
-pub struct Syncing<Next: ReprMetaData + Send + Sync> {
+pub struct Syncing<Next: AsMetaData + Send + Sync> {
     state: GameMetaData,
     pending: Vec<u8>,
     requested: bool,
@@ -98,7 +97,7 @@ pub struct Final {
 macro_rules! represent {
     ($($state:ident$(<$generic:ident>)?)+) => {
         $(
-            impl$(<$generic: ReprMetaData +Send +Sync +From<GameMetaData>+'static>)? ReprMetaData for $state$(<$generic>)?{
+            impl$(<$generic: AsMetaData +Send +Sync +From<GameMetaData>+'static>)? AsMetaData for $state$(<$generic>)?{
                 fn metadata(&mut self) -> &mut GameMetaData{
                     &mut self.state
                 }
@@ -120,20 +119,15 @@ represent! {
 
 #[cfg(test)]
 mod test {
-    use std::path::MAIN_SEPARATOR;
 
     use server::engine::rules::{Action, New};
 
     use crate::rules::{
         cards::{AustraliaCard, AustraliaDeck},
-        states::DiscardCard,
         AustraliaPlayer, Event,
     };
 
-    use super::{
-        pass::{self, Direction},
-        DealingCards, GameState, ReprMetaData, WaitingForPlayers,
-    };
+    use super::{pass::Direction, DealingCards, GameState, WaitingForPlayers};
 
     #[test]
     fn test_player_count_range_in_waiting_state_2_players() {
@@ -200,7 +194,7 @@ mod test {
         // Create a new WaitingForPlayers state for each test case.
         let mut waiting_state = WaitingForPlayers::<DealingCards>::new(None);
 
-        let (_duration, actions, next_state) = waiting_state.get_next_action(&players);
+        let (_duration, actions, _next_state) = waiting_state.get_next_action(&players);
         assert_eq!(expect.0, actions);
         // Assertions here...
     }
@@ -213,7 +207,7 @@ mod test {
         assert_eq!(AustraliaDeck::default().cards().len(), 28)
     }
 
-    /// Deals cards until a state transition is triggerd.
+    /// Deals cards until a state transition is triggered.
     ///
     /// This test will only pass if the number of cards dealt to each players is 7
     #[test]
@@ -234,7 +228,7 @@ mod test {
         let state = discard_card(state);
         let state = pass_hand(state, Direction::Forward);
         let state = sync(state);
-        let state = show_card(state);
+        let _state = show_card(state);
     }
 
     #[test]
@@ -310,7 +304,7 @@ mod test {
         let mut card_counter = 0;
         // Simulate dealing the card
         while let None = next_state {
-            let (duration, actions, state) = current_state.get_next_action(&players);
+            let (_duration, actions, state) = current_state.get_next_action(&players);
 
             println!("Requested actions: {:?}", actions);
             match state {
@@ -361,7 +355,7 @@ mod test {
         let mut card_counter = 0;
         // Simulate dealing the card
         while let None = next_state {
-            let (duration, actions, state) = dealing_cards_state.get_next_action(&players);
+            let (_duration, actions, state) = dealing_cards_state.get_next_action(&players);
             match state {
                 None => {
                     for action in actions.iter() {
@@ -407,7 +401,7 @@ mod test {
         let mut next_state = None;
 
         while let None = next_state {
-            let (duration, actions, state) = current_state.get_next_action(&players);
+            let (_duration, actions, state) = current_state.get_next_action(&players);
             println!("Requested actions: {:?}", actions);
 
             for action in actions.iter() {
@@ -448,7 +442,7 @@ mod test {
         );
 
         while let None = next_state {
-            let (duration, actions, state) = current_state.get_next_action(&players);
+            let (_duration, actions, state) = current_state.get_next_action(&players);
             println!("Requested actions: {:?}", actions);
 
             for action in actions.iter() {
@@ -500,7 +494,7 @@ mod test {
         let mut discard_counter = 0;
         // Simulate dealing the card
         while let None = next_state {
-            let (duration, actions, state) = current_state.get_next_action(&players);
+            let (_duration, actions, state) = current_state.get_next_action(&players);
             println!("Requested actions : {:?}", actions);
             match state {
                 None => {
@@ -531,7 +525,7 @@ mod test {
         let mut show_counter = 0;
 
         while let None = next_state {
-            let (duration, actions, state) = current_state.get_next_action(&players);
+            let (_duration, actions, state) = current_state.get_next_action(&players);
             println!("Requested actions: {:?}", actions);
 
             match state {
@@ -567,9 +561,8 @@ mod test {
         let players: Vec<usize> = vec![0, 1, 2, 3];
         let mut next_state: Option<Box<dyn GameState>> = None;
         let mut score_counter = 0;
-        let mut discarded_new_round = false;
         while let None = next_state {
-            let (duration, actions, state) = current_state.get_next_action(&players);
+            let (_duration, actions, state) = current_state.get_next_action(&players);
             println!("Requested actions: {:?}", actions);
 
             match state {
@@ -597,9 +590,7 @@ mod test {
                     next_state = Some(state);
                     for action in actions.iter() {
                         match action.action() {
-                            Event::NewRound => {
-                                discarded_new_round = true;
-                            }
+                            Event::NewRound => {}
                             _ => {
                                 assert!(false);
                             }
@@ -613,14 +604,14 @@ mod test {
 
         next_state.unwrap()
     }
-
+    /*
     fn show_pile(mut current_state: Box<dyn GameState>) -> Box<dyn GameState> {
         let players = vec![0, 1, 2, 3];
         let mut next_state = None;
         let mut show_counter = 0;
 
         while let None = next_state {
-            let (duration, actions, state) = current_state.get_next_action(&players);
+            let (_duration, actions, state) = current_state.get_next_action(&players);
             println!("Requested actions: {:?}", actions);
 
             match state {
@@ -654,34 +645,28 @@ mod test {
 
         next_state.unwrap()
     }
+    */
 
     fn game_end(mut current_state: Box<dyn GameState>) {
         let players = vec![0, 1, 2, 3];
-        let mut next_state = None;
         let mut score_recv_counter = 0;
+        let (_duration, actions, state) = current_state.get_next_action(&players);
+        println!("Requested actions: {:?}", actions);
 
-        while let None = next_state {
-            let (_duration, actions, state) = current_state.get_next_action(&players);
-            println!("Requested actions: {:?}", actions);
-
-            match state {
-                None => {
-                    for action in actions.iter() {
-                        match action.action() {
-                            Event::FinalResult(_, _) => {
-                                score_recv_counter += 1;
-                            }
-                            _ => {
-                                assert!(false);
-                            }
+        match state {
+            None => {
+                for action in actions.iter() {
+                    match action.action() {
+                        Event::FinalResult(_, _) => {
+                            score_recv_counter += 1;
+                        }
+                        _ => {
+                            assert!(false);
                         }
                     }
                 }
-                _ => {}
             }
-
-            next_state = state;
-            break;
+            _ => {}
         }
 
         assert_eq!(score_recv_counter, 4);

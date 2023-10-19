@@ -82,7 +82,6 @@ pub struct Lobby<R: RuleEngine, const CAPACITY: usize> {
     event_queue: Arc<Mutex<Vec<rules::Action<rules::Sent, R::Event>>>>,
     received_events: Arc<Mutex<Vec<(R::Event, rules::Action<rules::Received, R::Event>)>>>,
     user_counter: usize,
-    send_queue: Arc<Mutex<Vec<Action<rules::New, R::Event>>>>,
 }
 
 impl<R: RuleEngine, const CAPACITY: usize> LobbyInterface<R::Event> for Lobby<R, CAPACITY> {
@@ -204,12 +203,10 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
         let msg_queue = Arc::new(Mutex::new(Vec::with_capacity(CAPACITY)));
         let sent_events = Arc::new(Mutex::new(Vec::with_capacity(CAPACITY)));
         let received_events = Arc::new(Mutex::new(Vec::with_capacity(CAPACITY)));
-        let send_queue = Arc::new(Mutex::new(Vec::with_capacity(CAPACITY)));
 
         let queue = msg_queue.clone();
         let sent_events_clone = sent_events.clone();
         let received_events_clone = received_events.clone();
-        let send_clone = send_queue.clone();
         // Monitor for events
         tokio::spawn(async move {
             loop {
@@ -218,7 +215,6 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
                     sent_events_clone.clone(),
                     received_events_clone.clone(),
                     queue.clone(),
-                    send_clone.clone(),
                 )
                 .await
             }
@@ -231,7 +227,6 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
             event_queue: sent_events.clone(),
             received_events: received_events.clone(),
             message_queue: msg_queue,
-            send_queue: send_queue,
             user_counter: 0,
         }
     }
@@ -317,8 +312,7 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
         // We should add a broadcast channel to the game lobby that shuts it down if this panics
         // for now it is better to just panic the thread if an error occurs here
         let (messages, responses) = self.flush_messages();
-        let borrowed_send = self.send_queue.borrow_mut().clone();
-        let mut send_queue = async_std::task::block_on(async { borrowed_send.lock().await });
+
         let mut send_queue = Vec::new();
         {
             let mut event_queue =
@@ -397,7 +391,6 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
         mut sent_events: Arc<Mutex<Vec<Action<rules::Sent, R::Event>>>>,
         mut received_events: Arc<Mutex<Vec<(R::Event, Action<rules::Received, R::Event>)>>>,
         mut queue: Arc<Mutex<Vec<Action<rules::New, R::Event>>>>,
-        mut send_queue: Arc<Mutex<Vec<Action<rules::New, <R as RuleEngine>::Event>>>>,
     ) {
         let (player, event) = match channel.recv().await {
             //Ok(value) => value,
@@ -410,12 +403,10 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
         let queue = queue.borrow_mut();
         let sent = sent_events.borrow_mut();
         let received = received_events.borrow_mut();
-        let send = send_queue.borrow_mut();
 
         let mut queue_locked = queue.lock().await;
         let mut sent_locked = sent.lock().await;
         let mut received_locked = received.lock().await;
-        let mut send_locked = send.lock().await;
         // Now we have all of the locks
 
         // If the player has an outstanding event request then we mark that event as completed and
@@ -449,7 +440,10 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
     pub async fn start(lobby_ref: Arc<Mutex<RefCell<Self>>>) {
         loop {
             let delay = Self::_start(lobby_ref.clone()).await;
-            sleep(Duration::from_secs(1)).await;
+            sleep(match delay {
+                Some(delay) => delay,
+                _ => Duration::from_secs(1),
+            }).await;
         }
     }
     async fn _start(lobby_ref: Arc<Mutex<RefCell<Self>>>) -> Option<Duration> {

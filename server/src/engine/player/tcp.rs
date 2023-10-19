@@ -2,15 +2,12 @@ use super::{EqPlayer, Id, Message, New, Player, PlayerError};
 use crate::engine::event::GameEvent;
 use async_trait::async_trait;
 use std::marker::PhantomData;
+use tokio::net::{
+    tcp::{OwnedReadHalf, OwnedWriteHalf},
+    TcpStream,
+};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::sync::Mutex;
-use tokio::{
-    io::AsyncWriteExt,
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
-    },
-};
 pub trait TcpPlayerState: std::fmt::Debug + Send {}
 #[derive(Debug)]
 pub struct Whole {}

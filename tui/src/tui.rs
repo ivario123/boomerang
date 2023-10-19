@@ -1,6 +1,6 @@
 pub mod paginate;
 pub mod popup;
-pub mod showpage;
+pub mod show_page;
 
 use std::{
     error::Error,
@@ -14,21 +14,18 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use log::{info, warn};
+use log::info;
 use ratatui::{
     prelude::{Backend, Constraint, CrosstermBackend, Direction, Layout, Rect},
     widgets::{Block, Borders},
     Frame,
 };
-use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
+use tokio::sync::{broadcast, mpsc, RwLock};
 
-use crate::{
-    maps::Map,
-    ui::{self, UiMessage},
-};
+use crate::ui::{self, UiMessage};
 use controls::*;
 
-use self::{paginate::Paginate, popup::Popup, showpage::ShowPage as ShowPageTrait};
+use self::{paginate::Paginate, popup::Popup, show_page::ShowPage as ShowPageTrait};
 
 // These type aliases are used to make the code more readable by reducing repetition of the generic
 // types. They are not necessary for the functionality of the code.
@@ -109,18 +106,18 @@ impl<
         self.info = None;
         Ok(())
     }
-    pub fn cleanup_popup(&mut self){
-        match &mut self.query{
+    pub fn cleanup_popup(&mut self) {
+        match &mut self.query {
             Some(page) => {
                 page.exit();
-            },
-            None => {},
+            }
+            None => {}
         }
-        match &mut self.info{
+        match &mut self.info {
             Some(page) => {
                 page.exit();
-            },
-            None => {},
+            }
+            None => {}
         }
     }
     pub fn clear_popup(&mut self) {
@@ -247,9 +244,9 @@ impl<
         QueryPopup: Popup + Send + 'static,
     > Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup>
 {
-    pub fn init(mainpage: StartPage, mappage: MapPage) -> RwLock<Box<Self>> {
+    pub fn init(mainpage: StartPage, map_page: MapPage) -> RwLock<Box<Self>> {
         let ret: Self = Self {
-            paginate: Paginate::new(mainpage, mappage),
+            paginate: Paginate::new(mainpage, map_page),
             terminal: Self::setup_terminal().unwrap(),
             show_popup: false,
             query: None,
@@ -274,10 +271,10 @@ impl<
     {
         // Create channels
         let (tx, mut rx) = mpsc::channel::<Controls>(32);
-        let (kill_sender, kill_reciver) = mpsc::channel::<()>(32);
+        let (kill_sender, kill_receiver) = mpsc::channel::<()>(32);
 
         // Start logging inputs
-        let _ = tokio::spawn(Self::handle_inputs(tx, kill_reciver));
+        let _ = tokio::spawn(Self::handle_inputs(tx, kill_receiver));
 
         // Make this event driven either by backend or user
 

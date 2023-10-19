@@ -29,7 +29,6 @@ impl GameEvent for BackendEvent {
     }
 }
 
-
 impl Into<Vec<u8>> for BackendEvent {
     fn into(self) -> Vec<u8> {
         serde_json::to_string(&self).unwrap().into_bytes()

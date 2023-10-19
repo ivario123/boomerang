@@ -1,4 +1,3 @@
-use crossterm::cursor::Show;
 use log::info;
 use ratatui::{
     prelude::{Backend, Rect},
@@ -7,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::{controls::EventApi, showpage::ShowPage as ShowPageTrait, TuiPage};
+use crate::tui::{controls::EventApi, show_page::ShowPage as ShowPageTrait, TuiPage};
 
 pub struct Paginate<MainPage: TuiPage, MapPage: TuiPage, ShowPage: ShowPageTrait>(
     MainPage,

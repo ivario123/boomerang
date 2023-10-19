@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::{popup::Popup, showpage::ShowPage as ShowPageTrait, Tui, TuiPage};
+use super::{popup::Popup, show_page::ShowPage as ShowPageTrait, Tui, TuiPage};
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},

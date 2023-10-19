@@ -1,6 +1,6 @@
 mod tcp;
-pub use tcp::*;
 use async_trait::async_trait;
+pub use tcp::*;
 use tokio;
 use tokio::sync::broadcast;
 

@@ -1,30 +1,31 @@
+#[deny(clippy::all)]
 mod australia;
 mod rules;
 
 extern crate clap;
 use std::panic::set_hook;
-use std::{net::TcpListener, sync::Arc, time::UNIX_EPOCH};
+use std::{net::TcpListener, sync::Arc};
 
-use crate::{australia::mappage::DefaultTuiMap, rules::Australia};
+use crate::{australia::map_page::DefaultTuiMap, rules::Australia};
 use async_recursion::async_recursion;
+use australia::show_page::ShowPage;
 use australia::ScoreList;
-use australia::showpage::ShowPage;
-use australia::{mainpage::DefaultMainPage, mappage, Message};
+use australia::{main_page::DefaultMainPage, map_page, Message};
 use clap::{command, Parser, ValueEnum};
 use log::{error, info, warn};
-use rules::Scoring;
+
 use rules::{cards::AustraliaCard, AustraliaPlayer, Event};
 use server::engine;
 use std::fs::File;
 use std::io::Write;
-use tokio::sync::broadcast::error::SendError;
+
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf, ReadHalf, WriteHalf},
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
     },
-    sync::broadcast::{self, Receiver, Sender},
+    sync::broadcast::{self, Receiver},
     time::Instant,
 };
 use tui::tui::popup::info::Info;
@@ -58,7 +59,7 @@ struct Args {
 
 type TuiDefaults = Tui<
     DefaultMainPage<AustraliaCard, AustraliaPlayer>,
-    mappage::DefaultTuiMap<Map, ScoreList>,
+    map_page::DefaultTuiMap<Map, ScoreList>,
     ShowPage<AustraliaCard, AustraliaPlayer>,
     Info,
     Select,
@@ -116,6 +117,7 @@ async fn manage_event(
         let to_send: Event = match event {
             Event::ReadyCheck => {
                 writer.send(Message::ReadyCheck).unwrap();
+                #[allow(unused_assignments)]
                 let mut ret = Event::Accept;
                 loop {
                     warn!("Waiting for message from frontend");
@@ -146,6 +148,7 @@ async fn manage_event(
             Event::UnexpectedMessage => continue,
             Event::DiscardRequest => {
                 writer.send(Message::DiscardQuery).unwrap();
+                #[allow(unused_assignments)]
                 let mut ret = 0;
                 loop {
                     warn!("Waiting for message from frontend");
@@ -165,6 +168,7 @@ async fn manage_event(
             }
             Event::ShowRequest => {
                 writer.send(Message::ShowQuery).unwrap();
+                #[allow(unused_assignments)]
                 let mut ret = 0;
                 loop {
                     warn!("Waiting for message from frontend");
@@ -221,6 +225,7 @@ async fn manage_event(
             }
             Event::ScoreActivityQuery(options) => {
                 writer.send(Message::ScoreActivityQuery(options)).unwrap();
+                #[allow(unused_assignments)]
                 let mut ret = None;
                 loop {
                     warn!("Waiting for message from frontend");
@@ -230,14 +235,13 @@ async fn manage_event(
                             ret = x;
                             break;
                         }
-                        _ => {
-                            continue;
-                        }
                         Err(_) => {
                             writer.send(Message::Exit).unwrap();
                             return;
                         }
-                        _ => {}
+                        _ => {
+                            continue;
+                        }
                     }
                 }
                 Event::ScoreActivity(ret)
@@ -262,9 +266,9 @@ async fn player_main() {
     let (feedback_writer, feedback_reader) = tokio::sync::broadcast::channel::<Message>(32);
 
     let join_handle = {
-        let mainpage = DefaultMainPage::new();
-        let mappage = DefaultTuiMap::new();
-        let ui = Arc::new(TuiDefaults::init(mainpage, mappage));
+        let main_page = DefaultMainPage::new();
+        let map_page = DefaultTuiMap::new();
+        let ui = Arc::new(TuiDefaults::init(main_page, map_page));
         TuiDefaults::subscribe(ui.clone(), reader, feedback_writer);
         let ui_ref_clone = ui.clone();
         tokio::spawn(async move {
@@ -279,9 +283,9 @@ async fn player_main() {
             panic!();
         }
     };
-    let (read_part, mut write_part) = stream.into_split();
+    let (read_part, write_part) = stream.into_split();
     let (broadcast_writer, broadcast_receiver) = broadcast::channel(32);
-    let handle = tokio::spawn(async move { read_event(read_part, broadcast_writer).await });
+    let _handle = tokio::spawn(async move { read_event(read_part, broadcast_writer).await });
     let handle = tokio::spawn(async move {
         manage_event(writer, feedback_reader, broadcast_receiver, write_part).await
     });

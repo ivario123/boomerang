@@ -5,9 +5,9 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{GameState, ReprMetaData, Syncing};
+use super::{GameState, AsMetaData, Syncing};
 
-impl<Next: ReprMetaData + Send + Sync> Syncing<Next> {
+impl<Next: AsMetaData + Send + Sync> Syncing<Next> {
     pub fn new(state: GameMetaData, next_state: Box<Next>) -> Self {
         Self {
             state,
@@ -17,10 +17,10 @@ impl<Next: ReprMetaData + Send + Sync> Syncing<Next> {
         }
     }
 }
-impl<Next: ReprMetaData + Send + Sync + 'static> GameState for Syncing<Next> {
+impl<Next: AsMetaData + Send + Sync + 'static> GameState for Syncing<Next> {
     fn get_next_action(
         &mut self,
-        players: &Vec<usize>,
+        _players: &Vec<usize>,
     ) -> (
         tokio::time::Duration,
         Vec<Action<New, Event>>,
