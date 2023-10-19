@@ -31,8 +31,8 @@ impl<Next: AsMetaData + Send + Sync + 'static> GameState for Syncing<Next> {
         info!("Syncing game state with {:?} pending events", self.pending);
         // If we have any out standing messages await these
         if self.pending.len() != 0 {
-            // Sleep server for a long time since there is noting to do
-            return (tokio::time::Duration::from_secs(5), actions, None);
+            // The response to this request is automated so it will be done fast
+            return (tokio::time::Duration::from_millis(1), actions, None);
         }
         if !self.requested {
             for player in &mut self.state.players {

@@ -58,10 +58,10 @@ impl<Next: AsMetaData + Send + Sync + From<GameMetaData> + 'static> GameState fo
                 self.pending.push(player.id);
             }
             self.requested = true;
-            return (tokio::time::Duration::from_secs(1), actions, None);
+            return (tokio::time::Duration::from_millis(1), actions, None);
         }
         (
-            tokio::time::Duration::from_secs(1),
+            tokio::time::Duration::from_millis(1),
             actions,
             Some(Box::new(Syncing::new(
                 self.state.clone(),

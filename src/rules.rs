@@ -212,18 +212,21 @@ impl Scoring {
     }
     fn score_regions(
         mut self,
-        player: &AustraliaPlayer,
+        player: &mut AustraliaPlayer,
         unclaimed_region: &Vec<AustralianRegion>,
     ) -> Self {
         let mut cards = player.get_discard();
         cards.extend(player.get_show());
         cards.extend(player.get_hand());
         let mut visited = player.get_visited();
-        let mut total = cards.len();
+        let mut total = 0;
         for card in cards {
             // Insert if not exists
             if !visited.contains(&card.to_char()) {
                 visited.push(card.to_char());
+                player.visit(card.to_char());
+                //  A new site has been visited
+                total += 1;
             }
         }
         let mut completed = Vec::new();
@@ -233,8 +236,8 @@ impl Scoring {
             }
         }
         total += completed.len() * 3;
-        self.completed_regions = completed;
-        self.tourist_sites = total;
+        self.completed_regions.extend(completed);
+        self.tourist_sites += total;
         self
     }
     fn score_activity(
@@ -331,7 +334,16 @@ impl GameMetaData {
             player.add_score(scoring);
         }
         for el in completed {
-            self.non_completed_regions.push(el);
+            let mut found = None;
+            for (idx, region) in self.non_completed_regions.iter().enumerate() {
+                if el == *region {
+                    found = Some(idx);
+                    break;
+                }
+            }
+            if let Some(idx) = found {
+                self.non_completed_regions.remove(idx);
+            }
         }
         self.round_counter == 3
     }
@@ -679,6 +691,191 @@ impl<const CAPACITY: usize, const MIN_PLAYERS: usize> Instantiable
     fn new() -> Self {
         Australia {
             state: Box::new(WaitingForPlayers::<DealingCards>::new(None)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// Req 10. a
+    fn test_10_a() {
+        let mut player = AustraliaPlayer::new(0);
+        player.hand.push(AustraliaCard::BarossaValley);
+        player.discard_pile.push(AustraliaCard::BarossaValley);
+        let scoring = Scoring::new().score_throw_catch(&player);
+        assert_eq!(scoring.throw_catch, 0);
+        let mut player = AustraliaPlayer::new(0);
+        player.hand.push(AustraliaCard::TheBungleBungles);
+        player.discard_pile.push(AustraliaCard::Uluru);
+        let scoring = Scoring::new().score_throw_catch(&player);
+        assert_eq!(scoring.throw_catch, 3);
+    }
+
+    #[test]
+    /// Req 10. b
+    fn test_10_b() {
+        let mut player = AustraliaPlayer::new(0);
+        player.hand.push(AustraliaCard::TheBungleBungles);
+        player.hand.push(AustraliaCard::ThePinnacles);
+        player.hand.push(AustraliaCard::MargaretRiver);
+        player.hand.push(AustraliaCard::KalbarriNationalPark);
+
+        let unclaimed_regions = vec![AustralianRegion::WesternAustralia] /* Initialize unclaimed regions */;
+        let scoring = Scoring::new().score_regions(&mut player, &unclaimed_regions);
+        assert_eq!(scoring.tourist_sites, 7);
+        assert_eq!(scoring.completed_regions.len(), 1);
+
+        let mut player = AustraliaPlayer::new(0);
+        player.hand.push(AustraliaCard::TheBungleBungles);
+        player.hand.push(AustraliaCard::ThePinnacles);
+        player.hand.push(AustraliaCard::MargaretRiver);
+        player.hand.push(AustraliaCard::KalbarriNationalPark);
+
+        let unclaimed_regions = vec![];
+        let scoring = Scoring::new().score_regions(&mut player, &unclaimed_regions);
+        assert_eq!(scoring.tourist_sites, 4);
+        assert_eq!(scoring.completed_regions.len(), 0);
+
+        let mut player = AustraliaPlayer::new(0);
+        player.hand.push(AustraliaCard::TheBungleBungles);
+        player.hand.push(AustraliaCard::ThePinnacles);
+        player.hand.push(AustraliaCard::MargaretRiver);
+        player.hand.push(AustraliaCard::KalbarriNationalPark);
+
+        let unclaimed_regions = vec![AustralianRegion::WesternAustralia];
+        let scoring = Scoring::new().score_regions(&mut player, &unclaimed_regions);
+        assert_eq!(scoring.tourist_sites, 7);
+        assert_eq!(scoring.completed_regions.len(), 1);
+
+        let mut meta = GameMetaData::new(&[0, 1]);
+        for player in meta.players.iter_mut() {
+            player.hand.push(AustraliaCard::TheBungleBungles);
+            player.hand.push(AustraliaCard::ThePinnacles);
+            player.hand.push(AustraliaCard::MargaretRiver);
+            player.hand.push(AustraliaCard::KalbarriNationalPark);
+            player.hand.push(AustraliaCard::Uluru);
+            player.hand.push(AustraliaCard::KakaduNationalPark);
+            player.hand.push(AustraliaCard::NitmilukNationalPark);
+            player.discard(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+        }
+        meta.score_round(&Vec::new());
+        println!("{:?}", meta);
+        for player in meta.players.iter() {
+            println!("{:?}", player);
+            // Expect 10 since 3 + number of elements in hand = 10
+            assert_eq!(player.scoring[0].tourist_sites(), 10);
+        }
+        meta.new_round();
+        for player in meta.players.iter_mut() {
+            player.hand.push(AustraliaCard::TheBungleBungles);
+            player.hand.push(AustraliaCard::ThePinnacles);
+            player.hand.push(AustraliaCard::MargaretRiver);
+            player.hand.push(AustraliaCard::KalbarriNationalPark);
+            player.hand.push(AustraliaCard::Uluru);
+            player.hand.push(AustraliaCard::KakaduNationalPark);
+            player.hand.push(AustraliaCard::NitmilukNationalPark);
+            player.discard(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+        }
+        meta.score_round(&Vec::new());
+        println!("{:?}", meta);
+        for player in meta.players {
+            println!("{:?}", player);
+            // Expect 10 since 3 + number of elements in hand = 10
+            assert_eq!(player.scoring[1].tourist_sites(), 0);
+        }
+    }
+
+    #[test]
+    /// Req 10. c
+    fn test_10_c() {
+        let mut player = AustraliaPlayer::new(0);
+
+        player.hand.push(AustraliaCard::TheBungleBungles); // 1 pt
+        player.hand.push(AustraliaCard::KalbarriNationalPark); // 2 pt
+        player.hand.push(AustraliaCard::MargaretRiver); // 3 pt
+        player.hand.push(AustraliaCard::DaintreeRainforest); // 5 pt
+
+        let scoring = Scoring::new().score_collections(&player);
+
+        assert_eq!(scoring.collections, 1 + 2 + 3 + 5);
+
+        let mut player = AustraliaPlayer::new(0);
+
+        player.hand.push(AustraliaCard::TheBungleBungles); // 1 pt
+        player.hand.push(AustraliaCard::KalbarriNationalPark); // 2 pt
+        player.hand.push(AustraliaCard::MargaretRiver); // 3 pt
+
+        let scoring = Scoring::new().score_collections(&player);
+
+        assert_eq!(scoring.collections, (1 + 2 + 3) * 2);
+    }
+    #[test]
+    fn test_10_d() {
+        let mut meta = GameMetaData::new(&[0, 1]);
+
+        for player in meta.players.iter_mut() {
+            // Add these cards to the player's hand
+            player.hand.push(AustraliaCard::ThePinnacles);
+            player.hand.push(AustraliaCard::MargaretRiver);
+            player.hand.push(AustraliaCard::Uluru);
+            player.hand.push(AustraliaCard::LakeEyre);
+
+            // Simulate discarding a card and showing some cards
+            player.discard(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+        }
+
+        // Calculate the animals score within the GameMetaData
+        meta.score_round(&Vec::new());
+
+        // Verify the scoring for each player
+        for player in meta.players.iter() {
+            // Calculate the expected score for the matching animal pairs
+
+            // Check if the player's scoring matches the expected score
+            assert_eq!(player.scoring[0].animals, 3 + 4);
+        }
+    }
+    #[test]
+    fn test_10_e() {
+        let mut meta = GameMetaData::new(&[0, 1]);
+
+        for player in meta.players.iter_mut() {
+            player.hand.push(AustraliaCard::TheBungleBungles);
+            player.hand.push(AustraliaCard::Uluru);
+            player.hand.push(AustraliaCard::Uluru);
+            player.hand.push(AustraliaCard::TheWhitsundays);
+            player.hand.push(AustraliaCard::BlueMountains);
+            player.hand.push(AustraliaCard::KingsCanyon);
+
+            player.discard(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+        }
+
+        // Create a list of activities to score (we'll score "Sightseeing")
+        let activities_to_score = vec![
+            (0, Some(AustralianActivity::IndigenousCulture)),
+            (1, Some(AustralianActivity::IndigenousCulture)),
+        ];
+
+        // Calculate the activities score within the GameMetaData
+        meta.score_round(&activities_to_score);
+
+        // Verify the scoring for each player
+        for player in meta.players.iter() {
+            println!("{:?}", player);
+            assert_eq!(player.scoring[0].activity, 10); // Only "Sightseeing" activity is scored
         }
     }
 }
