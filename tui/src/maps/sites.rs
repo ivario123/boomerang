@@ -2,7 +2,6 @@ use ratatui::style::Color;
 use ratatui::widgets::canvas::Line;
 use std::fmt::Debug;
 
-pub mod australia;
 pub trait Region: Clone + Copy + Debug + PartialEq {
     /// Returns coordinates to where the labels should start
     /// appearing
