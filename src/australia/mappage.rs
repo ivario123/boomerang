@@ -13,32 +13,38 @@ use tui::{
     tui::{controls::EventApi, TuiPage},
 };
 
-pub struct DefaultTuiMap<M: maps::Map> {
+pub struct DefaultTuiMap<M: maps::Map, ScoreArea: TuiPage> {
     map: M,
     title: String,
     visited: Vec<char>,
+    scoring_area: ScoreArea,
 }
 
-impl<M: maps::Map> DefaultTuiMap<M> {
+impl<M: maps::Map, ScoreArea: TuiPage + Default> DefaultTuiMap<M, ScoreArea> {
     pub fn new() -> Self {
         Self {
             map: M::default(),
             title: "Map".to_owned(),
             visited: Vec::new(),
+            scoring_area: ScoreArea::default(),
         }
     }
     pub fn update_visited(&mut self, visited: Vec<char>) {
         self.visited = visited
     }
+    pub fn replace_score(&mut self, score: ScoreArea) {
+        self.scoring_area = score
+    }
 }
 
-impl<M: maps::Map> EventApi for DefaultTuiMap<M> {
+impl<M: maps::Map, ScoreArea: TuiPage> EventApi for DefaultTuiMap<M, ScoreArea> {
     fn handle_input(&mut self, _control: tui::tui::controls::Controls) {
         // This should be able to assign scores and things I guess
     }
 }
 
-impl<M: maps::Map + ratatui::widgets::canvas::Shape> TuiPage for DefaultTuiMap<M>
+impl<M: maps::Map + ratatui::widgets::canvas::Shape, ScoreArea: TuiPage + Send> TuiPage
+    for DefaultTuiMap<M, ScoreArea>
 where
     M::REGION: 'static,
 {
@@ -52,7 +58,7 @@ where
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .margin(1)
-            .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)].as_ref())
             .split(block);
 
         let canvas = Canvas::default()
@@ -78,6 +84,7 @@ where
             })
             .marker(Marker::Dot);
 
-        let scoring_region = frame.render_widget(canvas, layout[0]);
+        frame.render_widget(canvas, layout[0]);
+        self.scoring_area.draw(frame, layout[1]);
     }
 }

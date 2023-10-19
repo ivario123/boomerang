@@ -11,6 +11,7 @@ use australia::showpage::ShowPage;
 use australia::{mainpage::DefaultMainPage, mappage, Message};
 use clap::{command, Parser, ValueEnum};
 use log::{error, info, warn};
+use rules::Scoring;
 use rules::{cards::AustraliaCard, AustraliaPlayer, Event};
 use server::engine;
 use std::fs::File;
@@ -56,7 +57,7 @@ struct Args {
 
 type TuiDefaults = Tui<
     DefaultMainPage<AustraliaCard, AustraliaPlayer>,
-    mappage::DefaultTuiMap<Map>,
+    mappage::DefaultTuiMap<Map, Scoring>,
     ShowPage<AustraliaCard, AustraliaPlayer>,
     Info,
     Select,
@@ -239,6 +240,10 @@ async fn manage_event(
                     }
                 }
                 Event::ScoreActivity(ret)
+            }
+            Event::NewRound => {
+                writer.send(Message::NewRound).unwrap();
+                continue;
             }
             unexpected => {
                 error!("Got unhandled message: {:?}", unexpected);

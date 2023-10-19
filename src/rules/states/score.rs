@@ -14,11 +14,12 @@ impl Scoring {
             pending: Vec::new(),
             requested: false,
             actions: Vec::new(),
+            informed: false,
         }
     }
 }
 
-impl From<GameMetaData> for Scoring{
+impl From<GameMetaData> for Scoring {
     fn from(value: GameMetaData) -> Self {
         Self::new(value)
     }
@@ -33,7 +34,7 @@ impl GameState for Scoring {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
-        info!("State : {:?}",self);
+        info!("State : {:?}", self);
         let mut actions = Vec::new();
         // If we have any out standing messages await these
         if self.pending.len() != 0 {
@@ -61,6 +62,9 @@ impl GameState for Scoring {
                     todo!();
                 }
                 false => {
+                    for player in &mut self.state.players {
+                        actions.push(Action::new(player.id as usize, Event::NewRound));
+                    }
                     self.state.new_round();
                     (
                         tokio::time::Duration::from_secs(1),

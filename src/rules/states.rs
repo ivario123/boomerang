@@ -73,6 +73,7 @@ pub struct Scoring {
     pending: Vec<u8>,
     requested: bool,
     actions: Vec<(u8, Option<AustralianActivity>)>,
+    informed: bool,
 }
 
 #[derive(Debug)]

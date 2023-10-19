@@ -28,7 +28,7 @@ pub enum Event {
     ShowRequest,
     /// Shows the given card to the other players and discards it.
     Show(usize),
-    ShowPile(u8, Vec<AustraliaCard>,Vec<char>),
+    ShowPile(u8, Vec<AustraliaCard>, Vec<char>),
     DiscardRequest,
     /// Discards the card in the players hand at that given index.
     Discard(usize),
@@ -41,6 +41,7 @@ pub enum Event {
     UnexpectedMessage,
     Resend,
     Sync(AustraliaPlayer),
+    NewRound,
 }
 impl TryInto<BackendEvent> for Event {
     type Error = ();
@@ -97,7 +98,7 @@ pub struct Scoring {
 
 // Builder pattern for scoring
 impl Scoring {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             throw_catch: 0,
             tourist_sites: 0,
@@ -107,7 +108,21 @@ impl Scoring {
             completed_regions: Vec::new(),
         }
     }
-
+    pub fn throw_catch(&self) -> usize {
+        self.throw_catch
+    }
+    pub fn tourist_sites(&self) -> usize {
+        self.tourist_sites
+    }
+    pub fn collections(&self) -> usize {
+        self.collections
+    }
+    pub fn animals(&self) -> usize {
+        self.animals
+    }
+    pub fn activity(&self) -> usize {
+        self.activity
+    }
     fn completed_regions(&self) -> Vec<AustralianRegion> {
         self.completed_regions.clone()
     }
@@ -328,7 +343,9 @@ impl AustraliaPlayer {
     fn hand_empty(&self) -> bool {
         self.hand.len() == 0
     }
-
+    pub fn scores(&self) -> Vec<Scoring> {
+        self.scoring.clone()
+    }
     pub fn privately_visited(&mut self) -> Vec<char> {
         let mut ret = self.publicly_visited();
         for el in self.get_discard() {

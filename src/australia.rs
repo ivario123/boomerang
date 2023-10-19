@@ -5,6 +5,7 @@ pub mod showpage;
 use async_std::channel::{self, Recv};
 use log::{error, info};
 use ratatui::{
+    layout,
     prelude::{Backend, Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
     widgets::{Block, Borders, Paragraph},
@@ -15,6 +16,7 @@ use tokio::sync::{broadcast, Mutex, RwLock};
 use tui::{
     maps::boomerang_australia::Map,
     tui::{
+        controls::EventApi,
         popup::{self, info::Info, select::Select, Popup},
         Tui, TuiMonitor, TuiPage,
     },
@@ -25,7 +27,7 @@ use crate::{
     read_event,
     rules::{
         cards::{AustraliaCard, AustralianActivity, Card as CardTrait},
-        AustraliaPlayer,
+        AustraliaPlayer, Scoring,
     },
 };
 
@@ -51,6 +53,7 @@ pub enum Message {
     Ok,
     ScoreActivityQuery(Vec<AustralianActivity>),
     ScoreActivity(Option<AustralianActivity>),
+    NewRound,
     Exit,
 }
 impl UiMessage for Message {}
@@ -143,11 +146,63 @@ where
     }
 }
 
+impl EventApi for Scoring {
+    fn handle_input(&mut self, control: tui::tui::controls::Controls) {
+        todo!()
+    }
+}
+impl Default for Scoring {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TuiPage for Scoring {
+    fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect) {
+        let score_area = Block::default()
+            .title("Score")
+            .borders(Borders::all())
+            .style(Style::default());
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(1)
+            .constraints([Constraint::Percentage((100 / 5) as u16); 5].as_ref())
+            .split(block)
+            .to_vec();
+
+        let mut paragraphs = Vec::new();
+        paragraphs.push(Paragraph::new(format!(
+            "Throw Catch : {:?}",
+            self.throw_catch()
+        )));
+        paragraphs.push(Paragraph::new(format!(
+            "tourist_sites : {:?}",
+            self.tourist_sites()
+        )));
+        paragraphs.push(Paragraph::new(format!(
+            "Collections : {:?}",
+            self.collections()
+        )));
+        paragraphs.push(Paragraph::new(format!("Animals : {:?}", self.animals())));
+        paragraphs.push(Paragraph::new(format!("Activity : {:?}", self.activity())));
+        frame.render_widget(score_area, block);
+        for (block, paragraph) in layout.iter().zip(paragraphs) {
+            frame.render_widget(paragraph, *block);
+        }
+    }
+
+    fn set_title(&mut self, title: String) {}
+
+    fn get_title(&self) -> &str {
+        "Score"
+    }
+}
+
 #[async_trait::async_trait]
 impl TuiMonitor<Message, Info, Select>
     for Tui<
         DefaultMainPage<AustraliaCard, AustraliaPlayer>,
-        mappage::DefaultTuiMap<Map>,
+        mappage::DefaultTuiMap<Map, Scoring>,
         crate::australia::showpage::ShowPage<AustraliaCard, AustraliaPlayer>,
         Info,
         Select,
@@ -156,6 +211,9 @@ impl TuiMonitor<Message, Info, Select>
     async fn select(page: Arc<RwLock<Box<Self>>>, mut popup: Select) {
         info!("Showing query prompt");
         page.write().await.cleanup_popup();
+        while let true = page.write().await.showing_popup() {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
         let mut channel = {
             let mut page_write = page.write().await;
             let channel = popup.subscribe();
@@ -270,12 +328,6 @@ impl TuiMonitor<Message, Info, Select>
                     }
                 }
                 Message::ScoreActivityQuery(options) => {
-                    transmit.send(Message::ScoreActivity(None)).unwrap();
-                    continue;
-                    // Felet ligger någon stans i spawnandet av dialogen, vet inte vad som går fel
-                    // kan race conditions eller ett deadlock men tracet visar att 
-                    // vi kanalen går ur scope innan vi får svar ifrån den, kan vara någon info
-                    // dialog som kommer emellan vet inte.
                     let (write_part, mut read_part) = broadcast::channel(32);
                     let num_options = options.len();
                     // Cloning here is fin since the vector is small
@@ -339,7 +391,14 @@ impl TuiMonitor<Message, Info, Select>
                 }
                 Message::Sync(mut player) => {
                     let hand = AustraliaPlayer::new().set_cards(player.get_hand());
-
+                    let scores = player.scores();
+                    if let Some(score) = scores.last() {
+                        page.write()
+                            .await
+                            .paginate()
+                            .map_page()
+                            .replace_score((*score).clone());
+                    }
                     let mut discard = player.get_discard();
                     discard.extend(player.get_show());
                     let discard = AustraliaPlayer::new().set_cards(discard);
@@ -355,6 +414,14 @@ impl TuiMonitor<Message, Info, Select>
                     transmit.send(Message::Ok).unwrap();
                 }
                 // -------------------------            Status           -------------------------
+                Message::NewRound => {
+                    info!("new round");
+                    info!("Trying to show new round dialog");
+                    let (write_part, read_part) = broadcast::channel(32);
+                    let popup = Info::new(write_part, "Starting a new round, score for previous round can be seen on the map page".to_owned());
+                    let page_clone = page.clone();
+                    tokio::spawn(async move { Self::info(page_clone.clone(), popup).await });
+                }
                 Message::WaitingForPlayers => {
                     info!("Waiting for players");
                     {
