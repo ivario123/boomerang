@@ -1,11 +1,14 @@
 use log::info;
 
-use crate::{engine::rules::{Action, New, Error, Received}, rules::Event};
+use crate::{
+    engine::rules::{Action, Error, New, Received},
+    rules::{Event, GameMetaData},
+};
 
-use super::{GameState, WaitingForPlayers, DealingCards};
+use super::{DealingCards, GameState, ReprMetaData, WaitingForPlayers};
 
-impl<Next: GameState + Send + 'static> WaitingForPlayers<Next> {
-    pub fn new(next_state:Option<Box<Next>>) -> Self {
+impl<Next: ReprMetaData + Send + 'static> WaitingForPlayers<Next> {
+    pub fn new(next_state: Option<Box<Next>>) -> Self {
         Self {
             ready: Vec::new(),
             pending_ready: Vec::new(),
@@ -14,7 +17,7 @@ impl<Next: GameState + Send + 'static> WaitingForPlayers<Next> {
     }
 }
 
-impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
+impl<Next: ReprMetaData + Send + 'static> GameState for WaitingForPlayers<Next> {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,
@@ -23,13 +26,18 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
-        info!("State : {:?}",self);
+        info!("State : {:?}", self);
         println!("In waiting state");
+
         let mut actions = Vec::new();
-        // We need at least 2 players
+
         if players.len() < 2 {
             for player in players {
                 actions.push(Action::<New, Event>::new(*player, Event::WaitingForPlayers));
+            }
+        } else if players.len() > 4 {
+            for player in players {
+                actions.push(Action::<New, Event>::new(*player, Event::LobbyFull));
             }
         } else {
             // We have enough players, this means that all players need to be ready.
@@ -112,5 +120,8 @@ impl<Next: GameState + Send + 'static> GameState for WaitingForPlayers<Next> {
             }
         };
         Ok(None)
+    }
+    fn metadata(&mut self) -> Option<&mut GameMetaData> {
+        None
     }
 }

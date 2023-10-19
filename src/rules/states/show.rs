@@ -5,7 +5,7 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{pass::Direction, GameState, PassHand, Scoring, ShowCard};
+use super::{pass::Direction, GameState, PassHand, Scoring, ShowCard, ReprMetaData};
 
 impl ShowCard {
     pub fn new(state: GameMetaData) -> Self {
@@ -134,5 +134,8 @@ impl GameState for ShowCard {
             },
             _ => Err(Error::UnexpectedResponse),
         }
+    }
+    fn metadata(&mut self) -> Option<&mut GameMetaData> {
+        Some(ReprMetaData::metadata(self))
     }
 }

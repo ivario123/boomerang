@@ -7,7 +7,7 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{GameState, PassHand, ShowCard, Syncing};
+use super::{GameState, PassHand, ShowCard, Syncing, ReprMetaData};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
@@ -15,7 +15,7 @@ pub enum Direction {
     Backward,
 }
 
-impl<Next: GameState + Send + Sync + From<GameMetaData>> PassHand<Next> {
+impl<Next: ReprMetaData + Send + Sync + From<GameMetaData>> PassHand<Next> {
     pub fn new(state: GameMetaData, direction: Direction) -> Self {
         Self {
             state,
@@ -27,7 +27,7 @@ impl<Next: GameState + Send + Sync + From<GameMetaData>> PassHand<Next> {
     }
 }
 
-impl<Next: GameState + Send + Sync + From<GameMetaData> + 'static> GameState for PassHand<Next> {
+impl<Next: ReprMetaData + Send + Sync + From<GameMetaData> + 'static> GameState for PassHand<Next> {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,
@@ -105,5 +105,8 @@ impl<Next: GameState + Send + Sync + From<GameMetaData> + 'static> GameState for
             },
             _ => Ok(None),
         }
+    }
+    fn metadata(&mut self) -> Option<&mut GameMetaData> {
+        Some(ReprMetaData::metadata(self))
     }
 }

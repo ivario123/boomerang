@@ -1,4 +1,8 @@
-use rand::{seq::IteratorRandom, thread_rng};
+use log::error;
+use rand::{
+    seq::{IteratorRandom, SliceRandom},
+    thread_rng,
+};
 use serde::{Deserialize, Serialize};
 
 pub trait Collection {
@@ -29,10 +33,21 @@ pub struct AustraliaHand {
 }
 
 impl AustraliaDeck {
+    /// Pops the last card from the deck, given that the deck is shuffled this is random.
     pub fn draft(&mut self) -> AustraliaCard {
-        let idx = [0..self.deck.len()];
-        let (drafted, _) = idx.iter().enumerate().choose(&mut thread_rng()).unwrap();
-        self.deck.remove(drafted)
+        match self.deck.pop() {
+            Some(card) => card,
+            _ => {
+                error!("Tried to draft a card from an empty hand");
+                panic!()
+            }
+        }
+    }
+    pub fn cards(&mut self) -> Vec<AustraliaCard> {
+        self.deck.clone()
+    }
+    pub fn shuffle(&mut self) {
+        self.deck.shuffle(&mut rand::thread_rng());
     }
 }
 

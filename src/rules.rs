@@ -5,6 +5,7 @@ use std::path::MAIN_SEPARATOR;
 use serde::{Deserialize, Serialize};
 use server::engine::{
     event::{BackendEvent, GameEvent},
+    player::{self, Player},
     rules::{Action, Completed, Error, Instantiable, New, Received, RuleEngine},
 };
 
@@ -15,7 +16,7 @@ use self::{
         Animal, AustraliaCard, AustraliaDeck, AustralianActivity, AustralianAnimal,
         AustralianRegion, Card, Collection,
     },
-    states::{pass::Direction, DealingCards, GameState, WaitingForPlayers},
+    states::{pass::Direction, DealingCards, GameState, ReprMetaData, WaitingForPlayers},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -42,6 +43,8 @@ pub enum Event {
     Resend,
     Sync(AustraliaPlayer),
     NewRound,
+    LobbyFull,
+    FinalResult(u8, Vec<(u8, Scoring)>),
 }
 impl TryInto<BackendEvent> for Event {
     type Error = ();
@@ -95,7 +98,29 @@ pub struct Scoring {
     activity: usize,
     completed_regions: Vec<AustralianRegion>,
 }
-
+impl std::ops::AddAssign<Scoring> for Scoring {
+    fn add_assign(&mut self, rhs: Scoring) {
+        self.throw_catch += rhs.throw_catch;
+        self.tourist_sites += rhs.tourist_sites;
+        self.collections += rhs.collections;
+        self.activity += rhs.activity;
+        self.activity += rhs.activity;
+        for region in rhs.completed_regions {
+            if !self.completed_regions().contains(&region) {
+                self.completed_regions.push(region);
+            }
+        }
+    }
+}
+impl std::iter::Sum for Scoring {
+    fn sum<I: Iterator<Item = Scoring>>(iter: I) -> Self {
+        let mut total = Scoring::new();
+        for el in iter {
+            total += el;
+        }
+        total
+    }
+}
 // Builder pattern for scoring
 impl Scoring {
     pub fn new() -> Self {
@@ -122,6 +147,9 @@ impl Scoring {
     }
     pub fn activity(&self) -> usize {
         self.activity
+    }
+    fn total_score(&self) -> usize {
+        self.activity + self.animals + self.collections + self.throw_catch + self.tourist_sites
     }
     fn completed_regions(&self) -> Vec<AustralianRegion> {
         self.completed_regions.clone()
@@ -240,7 +268,15 @@ impl Scoring {
                 total += 1;
             }
         }
-        self.activity += total;
+        self.activity += match total {
+            0 | 1 => 0,
+            2 => 2,
+            3 => 4,
+            4 => 7,
+            5 => 10,
+            6 => 15,
+            _ => unreachable!(),
+        };
         self
     }
 }
@@ -302,6 +338,7 @@ impl GameMetaData {
     }
     pub fn new_round(&mut self) {
         self.deck = AustraliaDeck::default();
+        self.deck.shuffle();
         self.round_counter += 1;
         for player in self.players.iter_mut() {
             player.new_round();
@@ -475,8 +512,10 @@ impl GameMetaData {
         for player in players {
             players_vec.push(AustraliaPlayer::new(*player as u8));
         }
+        let mut deck = AustraliaDeck::default();
+        deck.shuffle();
         Self {
-            deck: AustraliaDeck::default(),
+            deck,
             players: players_vec,
             non_completed_regions: AustralianRegion::to_vec(),
             round_counter: 0,
@@ -538,14 +577,43 @@ impl GameMetaData {
                 }
             }
             Direction::Backward => {
-                let mut prev_hand = self.players.last().unwrap().hand.clone();
-                for player in self.players.iter_mut() {
+                let mut prev_hand = self.players.first().unwrap().hand.clone();
+                for player in self.players.iter_mut().rev() {
                     let intermediate = player.hand.clone();
                     player.hand = prev_hand;
                     prev_hand = intermediate;
                 }
             }
         };
+    }
+
+    fn rank(&mut self) -> Vec<(u8, Scoring)> {
+        let mut totals = Vec::new();
+        for player in &self.players {
+            let mut sum = Scoring::new();
+            for score in player.scores() {
+                sum += score;
+            }
+            totals.push((player.id, sum));
+        }
+        totals.sort_by(|a, b| {
+            let (a_tot, b_tot) = (a.1.total_score(), b.1.total_score());
+            if a_tot > b_tot {
+                std::cmp::Ordering::Greater
+            } else if a_tot == b_tot {
+                match a.1.throw_catch() > b.1.throw_catch() {
+                    true => std::cmp::Ordering::Greater,
+                    false => std::cmp::Ordering::Less,
+                }
+            } else {
+                std::cmp::Ordering::Less
+            }
+        });
+        totals
+    }
+
+    pub fn hands(&mut self) -> Vec<AustraliaPlayer> {
+        self.players.clone()
     }
     fn hands_singleton(&self) -> bool {
         let mut ret = true;
@@ -624,3 +692,7 @@ impl<const CAPACITY: usize, const MIN_PLAYERS: usize> Instantiable
         }
     }
 }
+
+
+
+

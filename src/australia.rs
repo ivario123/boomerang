@@ -146,18 +146,44 @@ where
     }
 }
 
-impl EventApi for Scoring {
+pub struct ScoreList(Vec<Scoring>);
+
+impl EventApi for ScoreList {
     fn handle_input(&mut self, control: tui::tui::controls::Controls) {
         todo!()
     }
 }
-impl Default for Scoring {
+impl Default for ScoreList {
     fn default() -> Self {
-        Self::new()
+        Self(Vec::new())
     }
 }
+impl ScoreList {
+    // Helper function to format elements as "{el1} + {el2} + .... + {last} = {sum}"
+    fn format_elements(&self, elements: Vec<usize>) -> String {
+        // Check if the elements vector is empty
+        if elements.is_empty() {
+            return String::from("{}");
+        }
 
-impl TuiPage for Scoring {
+        // If there's only one element, format it without brackets
+        if elements.len() == 1 {
+            return elements[0].to_string();
+        }
+
+        // Create a vector to hold the formatted elements
+        let mut formatted_elements = Vec::new();
+
+        // Format elements as "{el1} + {el2} + .... + {last} = {sum}"
+        for el in &elements {
+            formatted_elements.push(format!("{:?}", el));
+        }
+        let sum: usize = elements.iter().sum();
+        let ret = vec![formatted_elements.join(" + "), format!("{:?}", sum)];
+        ret.join("=")
+    }
+}
+impl TuiPage for ScoreList {
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect) {
         let score_area = Block::default()
             .title("Score")
@@ -171,20 +197,28 @@ impl TuiPage for Scoring {
             .to_vec();
 
         let mut paragraphs = Vec::new();
-        paragraphs.push(Paragraph::new(format!(
-            "Throw Catch : {:?}",
-            self.throw_catch()
-        )));
+
+        let mut throw_catch = Vec::new();
+        let mut tourist_sites = Vec::new();
+        let mut collections = Vec::new();
+        let mut animals = Vec::new();
+        let mut activity = Vec::new();
+        for score in &self.0 {
+            throw_catch.push(score.throw_catch());
+            tourist_sites.push(score.tourist_sites());
+            collections.push(score.collections());
+            animals.push(score.animals());
+            activity.push(score.activity());
+        }
+
+        paragraphs.push(Paragraph::new(format!("Throw Catch : {:?}", throw_catch)));
         paragraphs.push(Paragraph::new(format!(
             "tourist_sites : {:?}",
-            self.tourist_sites()
+            tourist_sites
         )));
-        paragraphs.push(Paragraph::new(format!(
-            "Collections : {:?}",
-            self.collections()
-        )));
-        paragraphs.push(Paragraph::new(format!("Animals : {:?}", self.animals())));
-        paragraphs.push(Paragraph::new(format!("Activity : {:?}", self.activity())));
+        paragraphs.push(Paragraph::new(format!("Collections : {:?}", collections)));
+        paragraphs.push(Paragraph::new(format!("Animals : {:?}", animals)));
+        paragraphs.push(Paragraph::new(format!("Activity : {:?}", activity)));
         frame.render_widget(score_area, block);
         for (block, paragraph) in layout.iter().zip(paragraphs) {
             frame.render_widget(paragraph, *block);
@@ -202,7 +236,7 @@ impl TuiPage for Scoring {
 impl TuiMonitor<Message, Info, Select>
     for Tui<
         DefaultMainPage<AustraliaCard, AustraliaPlayer>,
-        mappage::DefaultTuiMap<Map, Scoring>,
+        mappage::DefaultTuiMap<Map, ScoreList>,
         crate::australia::showpage::ShowPage<AustraliaCard, AustraliaPlayer>,
         Info,
         Select,
@@ -392,13 +426,11 @@ impl TuiMonitor<Message, Info, Select>
                 Message::Sync(mut player) => {
                     let hand = AustraliaPlayer::new().set_cards(player.get_hand());
                     let scores = player.scores();
-                    if let Some(score) = scores.last() {
-                        page.write()
-                            .await
-                            .paginate()
-                            .map_page()
-                            .replace_score((*score).clone());
-                    }
+                    page.write()
+                        .await
+                        .paginate()
+                        .map_page()
+                        .replace_score(ScoreList(scores));
                     let mut discard = player.get_discard();
                     discard.extend(player.get_show());
                     let discard = AustraliaPlayer::new().set_cards(discard);

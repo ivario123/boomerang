@@ -5,9 +5,9 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{GameState, Syncing};
+use super::{GameState, ReprMetaData, Syncing};
 
-impl<Next: GameState + Send + Sync> Syncing<Next> {
+impl<Next: ReprMetaData + Send + Sync> Syncing<Next> {
     pub fn new(state: GameMetaData, next_state: Box<Next>) -> Self {
         Self {
             state,
@@ -17,7 +17,7 @@ impl<Next: GameState + Send + Sync> Syncing<Next> {
         }
     }
 }
-impl<Next: GameState + Send + Sync + 'static> GameState for Syncing<Next> {
+impl<Next: ReprMetaData + Send + Sync + 'static> GameState for Syncing<Next> {
     fn get_next_action(
         &mut self,
         players: &Vec<usize>,
@@ -26,7 +26,7 @@ impl<Next: GameState + Send + Sync + 'static> GameState for Syncing<Next> {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
-        info!("State : {:?}",self);
+        info!("State : {:?}", self);
         let mut actions = Vec::new();
         info!("Syncing game state with {:?} pending events", self.pending);
         // If we have any out standing messages await these
@@ -90,5 +90,8 @@ impl<Next: GameState + Send + Sync + 'static> GameState for Syncing<Next> {
             }
             _ => Err(Error::UnexpectedMessage),
         }
+    }
+    fn metadata(&mut self) -> Option<&mut GameMetaData> {
+        Some(&mut self.state)
     }
 }

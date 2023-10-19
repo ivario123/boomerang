@@ -2,10 +2,10 @@ use log::info;
 
 use crate::{
     engine::rules::{Action, Error, New, Received},
-    rules::{Event, GameMetaData},
+    rules::{states::Final, Event, GameMetaData},
 };
 
-use super::{DealingCards, GameState, Scoring, Syncing};
+use super::{DealingCards, GameState, ReprMetaData, Scoring, Syncing};
 
 impl Scoring {
     pub fn new(state: GameMetaData) -> Self {
@@ -58,12 +58,15 @@ impl GameState for Scoring {
             (tokio::time::Duration::from_secs(1), actions, None)
         } else {
             match self.state.score_round(&self.actions) {
-                true => {
-                    todo!();
-                }
+                // Final state, this means game is over
+                true => (
+                    tokio::time::Duration::from_secs(1),
+                    actions,
+                    Some(Box::new(Final::from(self.state.clone()))),
+                ),
                 false => {
                     for player in &mut self.state.players {
-                        actions.push(Action::new(player.id as usize, Event::NewRound));
+                        actions.push(Action::new(player.id.into(), Event::NewRound));
                     }
                     self.state.new_round();
                     (
@@ -132,5 +135,8 @@ impl GameState for Scoring {
             }
             _ => Err(Error::UnexpectedMessage),
         }
+    }
+    fn metadata(&mut self) -> Option<&mut GameMetaData> {
+        Some(ReprMetaData::metadata(self))
     }
 }

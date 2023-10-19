@@ -7,6 +7,7 @@ use std::{net::TcpListener, sync::Arc, time::UNIX_EPOCH};
 
 use crate::{australia::mappage::DefaultTuiMap, rules::Australia};
 use async_recursion::async_recursion;
+use australia::ScoreList;
 use australia::showpage::ShowPage;
 use australia::{mainpage::DefaultMainPage, mappage, Message};
 use clap::{command, Parser, ValueEnum};
@@ -57,7 +58,7 @@ struct Args {
 
 type TuiDefaults = Tui<
     DefaultMainPage<AustraliaCard, AustraliaPlayer>,
-    mappage::DefaultTuiMap<Map, Scoring>,
+    mappage::DefaultTuiMap<Map, ScoreList>,
     ShowPage<AustraliaCard, AustraliaPlayer>,
     Info,
     Select,

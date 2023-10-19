@@ -5,7 +5,7 @@ use crate::{
     rules::{Event, GameMetaData},
 };
 
-use super::{pass::Direction, DiscardCard, GameState, PassHand, ShowCard};
+use super::{pass::Direction, DiscardCard, GameState, PassHand, ReprMetaData, ShowCard};
 
 impl DiscardCard {
     pub fn new(state: GameMetaData) -> Self {
@@ -14,6 +14,12 @@ impl DiscardCard {
             pending: Vec::new(),
             requested: false,
         }
+    }
+}
+
+impl From<GameMetaData> for DiscardCard {
+    fn from(metadata: GameMetaData) -> Self {
+        Self::new(metadata)
     }
 }
 
@@ -26,7 +32,7 @@ impl GameState for DiscardCard {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
-        info!("State : {:?}",self);
+        info!("State : {:?}", self);
         let mut actions = Vec::new();
         let mut request = |event: Event| {
             for player in players {
@@ -100,5 +106,8 @@ impl GameState for DiscardCard {
             },
             _ => Err(Error::UnexpectedResponse),
         }
+    }
+    fn metadata(&mut self) -> Option<&mut GameMetaData> {
+        Some(ReprMetaData::metadata(self))
     }
 }

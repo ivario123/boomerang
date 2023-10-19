@@ -5,7 +5,7 @@ use crate::{
     rules::{states::Syncing, Event, GameMetaData},
 };
 
-use super::{DealingCards, DiscardCard, GameState};
+use super::{DealingCards, DiscardCard, GameState, ReprMetaData};
 
 impl DealingCards {
     pub fn new(players: &[usize]) -> Self {
@@ -15,7 +15,10 @@ impl DealingCards {
             state: GameMetaData::new(players),
         }
     }
-    pub fn from(metadata: GameMetaData) -> Self {
+}
+
+impl From<GameMetaData> for DealingCards {
+    fn from(metadata: GameMetaData) -> Self {
         Self {
             pending_actions: Vec::new(),
             validated: Vec::new(),
@@ -33,8 +36,7 @@ impl GameState for DealingCards {
         Vec<Action<New, Event>>,
         Option<Box<dyn GameState>>,
     ) {
-
-        info!("State : {:?}",self);
+        info!("State : {:?}", self);
         let mut actions = Vec::new();
 
         // If we have any out standing messages await these
@@ -108,5 +110,9 @@ impl GameState for DealingCards {
             }
             _ => Err(Error::UnexpectedMessage),
         }
+    }
+
+    fn metadata(&mut self) -> Option<&mut GameMetaData> {
+        Some(ReprMetaData::metadata(self))
     }
 }
