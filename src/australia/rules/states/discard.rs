@@ -45,7 +45,7 @@ impl GameState for DiscardCard {
         if self.pending.len() != 0 {
             request(Event::WaitingForPlayers);
             // Sleep server for a long time since there is noting to do
-            return (tokio::time::Duration::from_secs(2), actions, None);
+            return (tokio::time::Duration::from_millis(500), actions, None);
         }
         if !self.requested {
             for player in players {
@@ -55,7 +55,7 @@ impl GameState for DiscardCard {
             self.requested = true;
         } else {
             return (
-                tokio::time::Duration::from_secs(2),
+                tokio::time::Duration::from_millis(500),
                 actions,
                 Some(Box::new(PassHand::<ShowCard>::new(
                     self.state.clone(),
@@ -63,7 +63,7 @@ impl GameState for DiscardCard {
                 ))),
             );
         }
-        (tokio::time::Duration::from_secs(2), actions, None)
+        (tokio::time::Duration::from_millis(500), actions, None)
     }
 
     fn register_message(

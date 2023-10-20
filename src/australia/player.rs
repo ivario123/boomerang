@@ -160,7 +160,10 @@ pub async fn manage_event(
                         Ok(Message::Ok) => {
                             break;
                         }
-                        _ => return,
+                        other => {
+                            error!("Received unexpected {:?} from frontend", other);
+                            return;
+                        }
                     }
                 }
                 Event::Accept
@@ -191,6 +194,11 @@ pub async fn manage_event(
             Event::NewRound => {
                 writer.send(Message::NewRound).unwrap();
                 continue;
+            }
+            Event::FinalResult(uid, scores) => {
+                // At this point we should disconnect
+                writer.send(Message::FinalResult(uid, scores)).unwrap();
+                return;
             }
             unexpected => {
                 error!("Got unhandled message: {:?}", unexpected);

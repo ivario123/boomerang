@@ -70,12 +70,14 @@ pub struct Tui<
     ShowPage: ShowPageTrait,
     InfoPopup: Popup,
     QueryPopup: Popup,
+    EndScreen: Popup,
 > {
     terminal: Terminal,
     paginate: Paginate<MainPage, MapPage, ShowPage>,
     show_popup: bool,
     info: Option<InfoPopup>,
     query: Option<QueryPopup>,
+    end_screen: Option<EndScreen>,
 }
 
 impl<
@@ -84,7 +86,8 @@ impl<
         ShowPage: ShowPageTrait,
         InfoPopup: Popup,
         QueryPopup: Popup,
-    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup>
+        EndScreen: Popup,
+    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup, EndScreen>
 {
     pub fn show_info(&mut self, info: InfoPopup) -> Result<(), TuiError> {
         if self.show_popup {
@@ -125,6 +128,9 @@ impl<
         self.query = None;
         self.info = None;
     }
+    pub fn final_result(&mut self, screen: EndScreen) {
+        self.end_screen = Some(screen);
+    }
 }
 
 impl<
@@ -133,7 +139,8 @@ impl<
         ShowPage: ShowPageTrait,
         InfoPopup: Popup,
         QueryPopup: Popup,
-    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup>
+        EndScreen: Popup,
+    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup, EndScreen>
 {
     pub fn paginate(&mut self) -> &mut Paginate<MainPage, MapPage, ShowPage> {
         &mut self.paginate
@@ -146,7 +153,8 @@ impl<
         ShowPage: ShowPageTrait,
         InfoPopup: Popup,
         QueryPopup: Popup,
-    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup>
+        EndScreen: Popup,
+    > Tui<MainPage, MapPage, ShowPage, InfoPopup, QueryPopup, EndScreen>
 {
     // Sets up the terminal to use the crossterm backend
     fn setup_terminal() -> Result<Terminal, Box<dyn Error>> {
@@ -163,7 +171,6 @@ impl<
         execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
     }
     pub fn show_popup<B: Backend, P: Popup>(frame: &mut Frame<B>, popup: &mut P) {
-        info!("Showing some popup");
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
@@ -211,22 +218,27 @@ impl<
         let term = &mut self.terminal;
         term.draw(|frame| {
             Self::draw(frame, &mut self.paginate);
-            info!("Show popup status : {:?}", self.show_popup);
-            info!("Info popup : {:?}", self.info);
-            if self.show_popup {
-                match &mut self.info {
-                    Some(popup) => {
-                        Self::show_popup(frame, popup);
-                        return;
+
+            match &mut self.end_screen {
+                Some(screen) => Self::show_popup(frame, screen),
+                _ => {
+                    Self::draw(frame, &mut self.paginate);
+                    if self.show_popup {
+                        match &mut self.info {
+                            Some(popup) => {
+                                Self::show_popup(frame, popup);
+                                return;
+                            }
+                            None => {}
+                        }
+                        match &mut self.query {
+                            Some(popup) => {
+                                Self::show_popup(frame, popup);
+                                return;
+                            }
+                            None => {}
+                        }
                     }
-                    None => {}
-                }
-                match &mut self.query {
-                    Some(popup) => {
-                        Self::show_popup(frame, popup);
-                        return;
-                    }
-                    None => {}
                 }
             }
         })
@@ -242,7 +254,8 @@ impl<
         ShowPage: ShowPageTrait + Send + 'static,
         InfoPopup: Popup + Send + 'static,
         QueryPopup: Popup + Send + 'static,
-    > Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup>
+        EndScreen: Popup + Send + 'static,
+    > Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup, EndScreen>
 {
     pub fn init(mainpage: StartPage, map_page: MapPage) -> RwLock<Box<Self>> {
         let ret: Self = Self {
@@ -251,6 +264,7 @@ impl<
             show_popup: false,
             query: None,
             info: None,
+            end_screen: None,
         };
         RwLock::new(Box::new(ret))
     }
@@ -263,7 +277,8 @@ impl<
         ShowPage: ShowPageTrait + Send + Sync + 'static,
         InfoPopup: Popup + Send + Sync + 'static,
         QueryPopup: Popup + Send + Sync + 'static,
-    > ui::Ui for Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup>
+        EndScreen: Popup + Send + Sync + 'static,
+    > ui::Ui for Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup, EndScreen>
 {
     async fn start(ui: Arc<RwLock<Box<Self>>>)
     where
@@ -283,7 +298,7 @@ impl<
             {
                 match rx.try_recv() {
                     Ok(Controls::Exit) => {
-                        ui.write().await.cleanup_terminal();
+                        let ui_locked = ui.write().await.cleanup_terminal();
 
                         // Kill logging instance
                         kill_sender.send(()).await.unwrap();

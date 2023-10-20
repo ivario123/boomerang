@@ -44,7 +44,7 @@ impl GameState for ShowCard {
         if self.pending.len() != 0 {
             request(Event::WaitingForPlayers);
             // Sleep server for a long time since there is noting to do
-            return (tokio::time::Duration::from_secs(2), actions, None);
+            return (tokio::time::Duration::from_millis(500), actions, None);
         }
         if !self.requested {
             for player in self.state.get_players() {
@@ -75,7 +75,7 @@ impl GameState for ShowCard {
             if self.state.hands_singleton() {
                 // Now we move to scoring
                 return (
-                    tokio::time::Duration::from_secs(2),
+                    tokio::time::Duration::from_millis(500),
                     actions,
                     Some(Box::new(PassHand::<Scoring>::new(
                         self.state.clone(),
@@ -84,7 +84,7 @@ impl GameState for ShowCard {
                 );
             } else {
                 return (
-                    tokio::time::Duration::from_secs(2),
+                    tokio::time::Duration::from_millis(500),
                     actions,
                     Some(Box::new(PassHand::<ShowCard>::new(
                         self.state.clone(),
@@ -93,7 +93,7 @@ impl GameState for ShowCard {
                 );
             }
         }
-        (tokio::time::Duration::from_secs(2), actions, None)
+        (tokio::time::Duration::from_millis(500), actions, None)
     }
 
     fn register_message(

@@ -1,15 +1,24 @@
-use ::tui::tui::{Tui, popup::{info::Info, select::Select}};
+use ::tui::tui::{
+    popup::{info::Info, select::Select},
+    Tui,
+};
 
-use self::{tui::{pages::{main_page::DefaultMainPage, map_page::DefaultTuiMap, show_page::ShowPage}, map::australia::Map, ScoreList}, rules::{cards::AustraliaCard, AustraliaPlayer}};
+use self::{
+    rules::{cards::AustraliaCard, AustraliaPlayer},
+    tui::{
+        map::australia::Map,
+        pages::{
+            main_page::DefaultMainPage, map_page::DefaultTuiMap, score_popup::Score,
+            show_page::ShowPage,
+        },
+        ScoreList,
+    },
+};
 
-
-pub mod tui;
+pub mod player;
 pub mod protocol;
 pub mod rules;
-pub mod player;
-
-
-
+pub mod tui;
 
 pub type TuiDefaults = Tui<
     DefaultMainPage<AustraliaCard, AustraliaPlayer>,
@@ -17,4 +26,5 @@ pub type TuiDefaults = Tui<
     ShowPage<AustraliaCard, AustraliaPlayer>,
     Info,
     Select,
+    Score,
 >;

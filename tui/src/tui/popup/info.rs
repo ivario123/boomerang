@@ -69,8 +69,6 @@ impl TuiPage for Info {
         frame.render_widget(Clear, area); //this clears out the background
         frame.render_widget(block, area);
         frame.render_widget(paragraph, paragraph_area);
-
-        info!("Popup drawn!");
     }
 
     fn set_title(&mut self, title: String) {

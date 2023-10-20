@@ -2,10 +2,16 @@ use serde::{Deserialize, Serialize};
 use server::engine::event::{BackendEvent, GameEvent};
 use tui::ui::UiMessage;
 
-use super::rules::{cards::{AustraliaCard, AustralianActivity}, AustraliaPlayer, scoring::Scoring};
+use super::rules::{
+    cards::{AustraliaCard, AustralianActivity},
+    scoring::Scoring,
+    AustraliaPlayer,
+};
 
-
-
+/// Events sent to and from the [`server`].
+///
+/// Not all of these events require a response from the player.
+/// To check wether an event requires a response use [`GameEvent::requires_response`]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Event {
     ReadyCheck,
@@ -33,6 +39,31 @@ pub enum Event {
     LobbyFull,
     FinalResult(u8, Vec<(u8, Scoring)>),
 }
+
+/// Messages passed between [`tui`] and
+/// this crate
+#[derive(Debug, Clone)]
+pub enum Message {
+    WaitingForPlayers,
+    ReadyCheck,
+    Ready,
+    NotReady,
+    Deal(AustraliaCard),
+    DiscardQuery,
+    Discard(AustraliaCard, usize),
+    ShowQuery,
+    Show(AustraliaCard, usize),
+    ShowOtherHand(usize, Vec<AustraliaCard>, Vec<char>),
+    ReassignHand(Vec<AustraliaCard>),
+    Sync(AustraliaPlayer),
+    Ok,
+    ScoreActivityQuery(Vec<AustralianActivity>),
+    ScoreActivity(Option<AustralianActivity>),
+    NewRound,
+    Exit,
+    FinalResult(u8, Vec<(u8, Scoring)>),
+}
+
 impl TryInto<BackendEvent> for Event {
     type Error = ();
     fn try_into(self) -> Result<BackendEvent, Self::Error> {
@@ -76,27 +107,4 @@ impl GameEvent for Event {
     }
 }
 
-
-
-
-#[derive(Debug, Clone)]
-pub enum Message {
-    WaitingForPlayers,
-    ReadyCheck,
-    Ready,
-    NotReady,
-    Deal(AustraliaCard),
-    DiscardQuery,
-    Discard(AustraliaCard, usize),
-    ShowQuery,
-    Show(AustraliaCard, usize),
-    ShowOtherHand(usize, Vec<AustraliaCard>, Vec<char>),
-    ReassignHand(Vec<AustraliaCard>),
-    Sync(AustraliaPlayer),
-    Ok,
-    ScoreActivityQuery(Vec<AustralianActivity>),
-    ScoreActivity(Option<AustralianActivity>),
-    NewRound,
-    Exit,
-}
 impl UiMessage for Message {}

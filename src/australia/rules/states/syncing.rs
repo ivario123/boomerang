@@ -31,7 +31,7 @@ impl<Next: AsMetaData + Send + Sync + 'static> GameState for Syncing<Next> {
         // If we have any out standing messages await these
         if self.pending.len() != 0 {
             // The response to this request is automated so it will be done fast
-            return (tokio::time::Duration::from_millis(1), actions, None);
+            return (tokio::time::Duration::from_millis(500), actions, None);
         }
         if !self.requested {
             for player in self.state.get_players() {
@@ -39,12 +39,12 @@ impl<Next: AsMetaData + Send + Sync + 'static> GameState for Syncing<Next> {
                 self.pending.push(player.id);
             }
             self.requested = true;
-            (tokio::time::Duration::from_millis(1), actions, None)
+            (tokio::time::Duration::from_millis(500), actions, None)
         } else {
             // Usage of unwrap here is intended, The only time this goes to none is when some
             // logic error has occurred, if it does, we should panic
             let state = std::mem::replace(&mut self.next_state, None).unwrap();
-            (tokio::time::Duration::from_millis(1), actions, Some(state))
+            (tokio::time::Duration::from_millis(500), actions, Some(state))
         }
     }
 

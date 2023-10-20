@@ -41,7 +41,7 @@ impl GameState for Final {
                 ));
             }
             self.delivered = true;
-            (tokio::time::Duration::from_secs(1), actions, None)
+            (tokio::time::Duration::from_millis(500), actions, None)
         } else {
             (tokio::time::Duration::from_secs(100), actions, None)
         }

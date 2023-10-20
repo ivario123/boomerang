@@ -95,7 +95,8 @@ impl<
         ShowPage: ShowPageTrait + Send + 'static,
         InfoPopup: Popup + Send + 'static,
         QueryPopup: Popup + Send + 'static,
-    > Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup>
+        EndScreen: Popup + Send + 'static,
+    > Tui<StartPage, MapPage, ShowPage, InfoPopup, QueryPopup, EndScreen>
 {
     /// Manages user input
     ///

@@ -56,6 +56,12 @@ impl<C: Card, H: Hand<C> + CardArea<C>> DefaultMainPage<C, H> {
             requested_action: None,
         }
     }
+    pub fn get_hand(&self) -> &H{
+        &self.hand
+    }
+    pub fn get_show(&self) -> &H{
+        &self.discard_pile
+    }
 }
 
 impl<C: Card, H: Hand<C> + CardArea<C> + std::fmt::Debug> DefaultMainPage<C, H> {

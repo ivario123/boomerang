@@ -1,4 +1,4 @@
-use crate::engine::event::BackendEvent;
+use super::event::BackendEvent;
 
 use super::event::GameEvent;
 use super::player::{
@@ -185,7 +185,6 @@ impl<
         tokio::spawn(async move {
             let _ = receiver.receive().await;
         });
-
         Ok((self.user_counter - 1, subscriber))
     }
 }
@@ -442,7 +441,7 @@ impl<R: RuleEngine + rules::Instantiable + 'static, const CAPACITY: usize> Lobby
             let delay = Self::_start(lobby_ref.clone()).await;
             sleep(match delay {
                 Some(delay) => delay,
-                _ => Duration::from_secs(1),
+                _ => Duration::from_millis(500),
             }).await;
         }
     }

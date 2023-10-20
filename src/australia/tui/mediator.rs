@@ -1,8 +1,6 @@
 /**
  * asd
  */
-
-
 use std::sync::Arc;
 
 use log::{error, info};
@@ -18,14 +16,14 @@ use tui::{
 use crate::{
     australia::protocol::Message,
     australia::rules::{
-        cards::{AustraliaCard, AustralianActivity},
+        cards::{AustraliaCard, AustralianActivity, Card},
         AustraliaPlayer,
     },
 };
 
 use super::{
     map::australia::Map,
-    pages::{main_page::DefaultMainPage, map_page, show_page::ShowPage},
+    pages::{main_page::DefaultMainPage, map_page, score_popup::Score, show_page::ShowPage},
     ScoreList,
 };
 
@@ -37,13 +35,15 @@ impl TuiMonitor<Message, Info, Select>
         ShowPage<AustraliaCard, AustraliaPlayer>,
         Info,
         Select,
+        Score,
     >
 {
+    /// Opens up a input box, this allows the user to select an option
     async fn select(page: Arc<RwLock<Box<Self>>>, mut popup: Select) {
         info!("Showing query prompt");
         page.write().await.cleanup_popup();
         while let true = page.write().await.showing_popup() {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
         let mut channel = {
             let mut page_write = page.write().await;
@@ -62,11 +62,12 @@ impl TuiMonitor<Message, Info, Select>
             }
         }
     }
+    /// Opens up a info box, this will be cleared by any button press
     async fn info(page: Arc<RwLock<Box<Self>>>, mut popup: Info) {
         info!("Showing info pup-up");
         page.write().await.cleanup_popup();
         while let true = page.write().await.showing_popup() {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
         let mut channel = {
             let mut page_write = page.write().await;
@@ -164,6 +165,29 @@ impl TuiMonitor<Message, Info, Select>
                     // Cloning here is fin since the vector is small
                     let mut selectable: Vec<String> =
                         AustralianActivity::to_string_vec(options.clone());
+                    let mut locked = page.write().await;
+                    let mut cards = locked.main_page().get_hand().get_hand();
+                    cards.extend(locked.main_page().get_show().get_hand());
+
+                    let mut dict: std::collections::HashMap<AustralianActivity, usize> =
+                        std::collections::HashMap::new();
+                    for card in cards {
+                        if let Some(activity) = card.activity() {
+                            let count = dict.entry(activity).or_insert(0);
+                            *count += 1;
+                        }
+                    }
+                    // Avoid deadlocking our selves
+                    drop(locked);
+                    for (text, activity) in selectable.iter_mut().zip(options.clone()) {
+                        if let Some(&count) = dict.get(&activity) {
+                            let intermediate = format!("\n({})", count);
+                            *text = text.to_owned() + &intermediate;
+                        } else {
+                            let intermediate = format!("\n({})", 0);
+                            *text = text.to_owned() + &intermediate;
+                        }
+                    }
                     selectable.push("Do not score anything".to_owned());
                     let popup = Select::new(
                         write_part,
@@ -223,15 +247,14 @@ impl TuiMonitor<Message, Info, Select>
                 Message::Sync(mut player) => {
                     let hand = AustraliaPlayer::new(0).set_cards(player.get_hand());
                     let scores = player.scores();
-                    page.write()
-                        .await
+                    let mut locked_page = page.write().await;
+                    locked_page
                         .paginate()
                         .map_page()
                         .replace_score(ScoreList(scores));
                     let mut discard = player.get_discard();
                     discard.extend(player.get_show());
                     let discard = AustraliaPlayer::new(0).set_cards(discard);
-                    let mut locked_page = page.write().await;
                     locked_page.main_page().reassign_hand(hand);
                     locked_page.main_page().reassign_show(discard);
                     locked_page
@@ -243,6 +266,15 @@ impl TuiMonitor<Message, Info, Select>
                     transmit.send(Message::Ok).unwrap();
                 }
                 // -------------------------            Status           -------------------------
+                Message::FinalResult(uid, scores) => {
+                    info!("Game is now over");
+                    info!("Trying to show the score dialog");
+                    let score = Score::new(uid, scores);
+                    let mut locked = page.write().await;
+                    let _ = transmit.send(Message::Exit);
+                    locked.final_result(score);
+                    return;
+                }
                 Message::NewRound => {
                     info!("new round");
                     info!("Trying to show new round dialog");

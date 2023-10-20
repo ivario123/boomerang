@@ -247,7 +247,7 @@ impl<const CAPACITY: usize, const MIN_PLAYERS: usize> Instantiable
 
 #[cfg(test)]
 mod tests {
-    use crate::australia::rules::{meta::GameMetaData, cards::AustralianRegion};
+    use crate::australia::rules::{cards::AustralianRegion, meta::GameMetaData};
 
     use super::*;
 
@@ -343,6 +343,48 @@ mod tests {
             println!("{:?}", player);
             // Expect 0 since 3 + number of elements in hand = 10
             assert_eq!(player.scoring[1].tourist_sites(), 0);
+        }
+
+        let mut meta = GameMetaData::new(&[0, 1]);
+        for player in meta.get_players().iter_mut() {
+            player.hand.push(AustraliaCard::TheBungleBungles);
+            player.hand.push(AustraliaCard::ThePinnacles);
+            player.hand.push(AustraliaCard::MargaretRiver);
+            player.hand.push(AustraliaCard::Uluru);
+            player.hand.push(AustraliaCard::KakaduNationalPark);
+            player.hand.push(AustraliaCard::NitmilukNationalPark);
+            player.discard(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+        }
+        meta.score_round(&Vec::new());
+        println!("{:?}", meta);
+        for player in meta.get_players().iter() {
+            println!("{:?}", player);
+            // Expect 10 since 3 + number of elements in hand = 10
+            assert_eq!(player.scoring[0].tourist_sites(), 6);
+        }
+        meta.new_round();
+        for player in meta.get_players().iter_mut() {
+            player.hand.push(AustraliaCard::TheBungleBungles);
+            player.hand.push(AustraliaCard::ThePinnacles);
+            player.hand.push(AustraliaCard::MargaretRiver);
+            player.hand.push(AustraliaCard::KalbarriNationalPark);
+            player.hand.push(AustraliaCard::Uluru);
+            player.hand.push(AustraliaCard::KakaduNationalPark);
+            player.hand.push(AustraliaCard::NitmilukNationalPark);
+            player.discard(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+            player.show(&0).unwrap();
+        }
+        meta.score_round(&Vec::new());
+        println!("{:?}", meta);
+        for player in meta.get_players() {
+            println!("{:?}", player);
+            // Expect 0 since 3 + number of elements in hand = 10
+            assert_eq!(player.scoring[1].tourist_sites(), 4);
         }
     }
 

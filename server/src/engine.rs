@@ -68,7 +68,6 @@ async fn monitor<Event: GameEvent, T: session::LobbyInterface<Event>>(
     mut rx: broadcast::Receiver<player::Message<Event>>,
     tx: mpsc::Sender<(usize, Event)>,
 ) {
-    //println!("In monitor for {:?}", rx.resubscribe());
     loop {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         match rx.try_recv() {

@@ -19,7 +19,7 @@ pub trait Card<C: Collection, A: Animal>: std::fmt::Debug {
     fn region(&self) -> AustralianRegion;
 }
 
-#[derive(Debug, Serialize,PartialEq, Deserialize, Clone)]
+#[derive(Debug, Serialize, PartialEq, Deserialize, Clone)]
 pub struct AustraliaDeck {
     deck: Vec<AustraliaCard>,
 }
@@ -116,7 +116,7 @@ macro_rules! regions {
 }
 macro_rules! activities {
     ($(($variant:ident,$name:literal)),*) => {
-        #[derive(Debug, Serialize, Deserialize, Clone,Copy,PartialEq)]
+        #[derive(Debug, Serialize, Deserialize, Clone,Copy,PartialEq,Hash,Eq)]
         pub enum AustralianActivity {
             $($variant,)*
         }
@@ -582,18 +582,16 @@ card! {
     }
 }
 
-
-
 #[cfg(test)]
-mod test{
+mod test {
     use super::AustraliaDeck;
 
     #[test]
-    fn test_3(){
+    fn test_3() {
         let deck1 = AustraliaDeck::default();
         let mut deck2 = AustraliaDeck::default();
         deck2.shuffle();
-        assert_ne!(deck1,deck2);
+        assert_ne!(deck1, deck2);
     }
     #[test]
     fn test_2() {

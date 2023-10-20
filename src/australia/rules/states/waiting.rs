@@ -46,7 +46,7 @@ impl<Next: AsMetaData + Send + 'static> GameState for WaitingForPlayers<Next> {
                 // players disconnected it might be another state
                 let state = std::mem::replace(&mut self.next_state, None);
                 return (
-                    tokio::time::Duration::from_secs(4),
+                    tokio::time::Duration::from_millis(1),
                     actions,
                     Some(match state {
                         Some(state) => state,

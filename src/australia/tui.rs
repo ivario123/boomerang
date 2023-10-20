@@ -51,11 +51,11 @@ impl ScoreList {
 
         // Format elements as "{el1} + {el2} + .... + {last} = {sum}"
         for el in &elements {
-            formatted_elements.push(format!("{:?}", el));
+            formatted_elements.push(format!("{}", el));
         }
         let sum: usize = elements.iter().sum();
-        let ret = vec![formatted_elements.join(" + "), format!("{:?}", sum)];
-        ret.join("=")
+        let ret = vec![formatted_elements.join(" + "), format!("{}", sum)];
+        ret.join(" = ")
     }
 }
 impl TuiPage for ScoreList {
@@ -67,7 +67,7 @@ impl TuiPage for ScoreList {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
-            .constraints([Constraint::Percentage((100 / 5) as u16); 5].as_ref())
+            .constraints([Constraint::Percentage((100 / 6) as u16); 6].as_ref())
             .split(block)
             .to_vec();
 
@@ -78,7 +78,14 @@ impl TuiPage for ScoreList {
         let mut collections = Vec::new();
         let mut animals = Vec::new();
         let mut activity = Vec::new();
+        let mut sum = 0;
+        // This is horrendous but I do not have time to rework this
         for score in &self.0 {
+            sum += score.throw_catch();
+            sum += score.tourist_sites();
+            sum += score.collections();
+            sum += score.animals();
+            sum += score.activity();
             throw_catch.push(score.throw_catch());
             tourist_sites.push(score.tourist_sites());
             collections.push(score.collections());
@@ -86,23 +93,27 @@ impl TuiPage for ScoreList {
             activity.push(score.activity());
         }
 
-        paragraphs.push(Paragraph::new(format!("Throw Catch : {:?}", throw_catch)));
         paragraphs.push(Paragraph::new(format!(
-            "tourist_sites : {:?}",
+            "Throw Catch : {}",
+            self.format_elements(throw_catch)
+        )));
+        paragraphs.push(Paragraph::new(format!(
+            "tourist_sites : {}",
             self.format_elements(tourist_sites)
         )));
         paragraphs.push(Paragraph::new(format!(
-            "Collections : {:?}",
+            "Collections : {}",
             self.format_elements(collections)
         )));
         paragraphs.push(Paragraph::new(format!(
-            "Animals : {:?}",
+            "Animals : {}",
             self.format_elements(animals)
         )));
         paragraphs.push(Paragraph::new(format!(
-            "Activity : {:?}",
+            "Activity : {}",
             self.format_elements(activity)
         )));
+        paragraphs.push(Paragraph::new(format!("Total : {}", sum)));
         frame.render_widget(score_area, block);
         for (block, paragraph) in layout.iter().zip(paragraphs) {
             frame.render_widget(paragraph, *block);

@@ -46,7 +46,7 @@ impl GameState for Scoring {
                 }
             }
             // Sleep server for a long time since there is noting to do
-            return (tokio::time::Duration::from_secs(20), actions, None);
+            return (tokio::time::Duration::from_millis(500), actions, None);
         }
         if !self.requested {
             for player in self.state.get_players() {
@@ -57,12 +57,12 @@ impl GameState for Scoring {
                 self.pending.push(player.id);
             }
             self.requested = true;
-            (tokio::time::Duration::from_secs(1), actions, None)
+            (tokio::time::Duration::from_millis(500), actions, None)
         } else {
             match self.state.score_round(&self.actions) {
                 // Final state, this means game is over
                 true => (
-                    tokio::time::Duration::from_secs(1),
+                    tokio::time::Duration::from_millis(500),
                     actions,
                     Some(Box::new(Final::from(self.state.clone()))),
                 ),
@@ -72,7 +72,7 @@ impl GameState for Scoring {
                     }
                     self.state.new_round();
                     (
-                        tokio::time::Duration::from_secs(1),
+                        tokio::time::Duration::from_millis(500),
                         actions,
                         Some(Box::new(Syncing::new(
                             self.state.clone(),
