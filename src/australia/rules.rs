@@ -14,6 +14,7 @@ use self::{
 
 use super::{protocol::Event, tui::pages::main_page::CardArea};
 
+/// Player abstraction holds all relevant game data for a specific player.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AustraliaPlayer {
     id: u8,
@@ -27,7 +28,6 @@ pub struct AustraliaPlayer {
     visited: Vec<char>,
     scoring: Vec<Scoring>,
 }
-
 impl AustraliaPlayer {
     pub fn new(id: u8) -> Self {
         Self {
@@ -42,7 +42,13 @@ impl AustraliaPlayer {
             scoring: Vec::new(),
         }
     }
-    fn discard(&mut self, idx: &usize) -> Result<AustraliaCard, Error> {
+}
+// Modifiers
+impl AustraliaPlayer {
+    /// Moves the card from that index to the discard pile
+    ///
+    /// Returns error if that index is invalid
+    pub fn discard(&mut self, idx: &usize) -> Result<AustraliaCard, Error> {
         if *idx >= self.hand.len() {
             return Err(Error::NoSuchCard);
         }
@@ -51,6 +57,9 @@ impl AustraliaPlayer {
         self.decrement();
         Ok(card)
     }
+    /// Moves the card from that index to the show pile
+    ///
+    /// Returns error if that index is invalid
     fn show(&mut self, idx: &usize) -> Result<(), Error> {
         if *idx >= self.hand.len() {
             return Err(Error::NoSuchCard);
@@ -59,33 +68,13 @@ impl AustraliaPlayer {
         self.show_pile.push(card);
         Ok(())
     }
-    fn hand_empty(&self) -> bool {
-        self.hand.len() == 0
-    }
-    pub fn scores(&self) -> Vec<Scoring> {
-        self.scoring.clone()
-    }
-    pub fn privately_visited(&mut self) -> Vec<char> {
-        let mut ret = self.publicly_visited();
-        for el in self.get_discard() {
-            if !ret.contains(&el.to_char()) {
-                ret.push(el.to_char());
-            }
-        }
-        ret
-    }
 
-    pub fn publicly_visited(&self) -> Vec<char> {
-        let cards = self.get_show();
-        let mut ret = self.get_visited();
-        for el in cards {
-            if !ret.contains(&el.to_char()) {
-                ret.push(el.to_char());
-            }
-        }
-        ret
-    }
-
+    /// Prepares the player for a new round
+    ///
+    /// - Updates the list of visited locations
+    /// - Clears the hand
+    /// - Clears the discard pile
+    /// - Clears the show pile
     pub fn new_round(&mut self) {
         let mut cards = self.get_discard();
         cards.extend(self.get_show());
@@ -101,30 +90,82 @@ impl AustraliaPlayer {
         self.discard_pile.clear();
         self.show_pile.clear();
     }
-    pub fn add_score(&mut self, score: Scoring) {
-        self.scoring.push(score);
-    }
-    pub fn visit(&mut self, site: char) {
-        self.visited.push(site);
-    }
-    pub fn get_visited(&self) -> Vec<char> {
-        self.visited.clone()
-    }
-    pub fn get_hand(&self) -> Vec<AustraliaCard> {
-        self.hand.clone()
-    }
-    pub fn get_discard(&self) -> Vec<AustraliaCard> {
-        self.discard_pile.clone()
-    }
-    pub fn get_show(&self) -> Vec<AustraliaCard> {
-        self.show_pile.clone()
-    }
 
+    /// Overwrites the cards in the players hand with a new list of cards
     pub fn set_cards(mut self, cards: Vec<AustraliaCard>) -> Self {
         self.hand = cards;
         self
     }
+}
+// Getters
+impl AustraliaPlayer {
+    /// Returns true if the players hand is empty
+    fn hand_empty(&self) -> bool {
+        self.hand.len() == 0
+    }
+    /// Returns a list of the players round scores
+    pub fn scores(&self) -> Vec<Scoring> {
+        self.scoring.clone()
+    }
+    /// Returns a list of all the places that the player
+    /// has visited
+    ///
+    /// This includes the current discarded card.
+    pub fn privately_visited(&mut self) -> Vec<char> {
+        let mut ret = self.publicly_visited();
+        for el in self.get_discard() {
+            if !ret.contains(&el.to_char()) {
+                ret.push(el.to_char());
+            }
+        }
+        ret
+    }
 
+    /// Returns a list of all of the places that the player
+    /// has visited aside from the currently discarded card
+    pub fn publicly_visited(&self) -> Vec<char> {
+        let cards = self.get_show();
+        let mut ret = self.get_visited();
+        for el in cards {
+            if !ret.contains(&el.to_char()) {
+                ret.push(el.to_char());
+            }
+        }
+        ret
+    }
+
+    /// Pushes a new score to the players list of scores
+    pub fn add_score(&mut self, score: Scoring) {
+        self.scoring.push(score);
+    }
+
+    /// pushes a new site to the places that a player has visited
+    pub fn visit(&mut self, site: char) {
+        self.visited.push(site);
+    }
+
+    /// Returns a clone of the sites that the player has visited
+    pub fn get_visited(&self) -> Vec<char> {
+        self.visited.clone()
+    }
+
+    /// Returns a clone of the cards on the players hand
+    pub fn get_hand(&self) -> Vec<AustraliaCard> {
+        self.hand.clone()
+    }
+
+    /// Returns a clone of the cards in the players discard pile
+    pub fn get_discard(&self) -> Vec<AustraliaCard> {
+        self.discard_pile.clone()
+    }
+
+    /// Returns a clone of the cards in the players show pile
+    pub fn get_show(&self) -> Vec<AustraliaCard> {
+        self.show_pile.clone()
+    }
+}
+// Strictly TUI helpers
+impl AustraliaPlayer {
     pub fn card_ptr(&mut self) -> &mut usize {
         &mut self.card_ptr
     }
@@ -247,6 +288,8 @@ impl<const CAPACITY: usize, const MIN_PLAYERS: usize> Instantiable
 
 #[cfg(test)]
 mod tests {
+    use tui::ui::UiElement;
+
     use crate::australia::rules::{cards::AustralianRegion, meta::GameMetaData};
 
     use super::*;

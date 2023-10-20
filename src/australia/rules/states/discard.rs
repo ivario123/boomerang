@@ -1,4 +1,11 @@
+//! Defines a state where the players are asked to discard a card
+//! This card is hidden from the other players
+
+
 use log::info;
+
+
+
 
 use crate::{
     australia::{protocol::Event, rules::meta::GameMetaData},
@@ -70,7 +77,7 @@ impl GameState for DiscardCard {
         &mut self,
         _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        todo!()
+        Err(Error::UnexpectedMessage)
     }
 
     fn register_response(

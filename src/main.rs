@@ -1,3 +1,16 @@
+//! Boomerang
+//! 
+//! Implements both a boomerang client and a boomerang server.
+//! The only rule set provided is the BoomerangAustralia rule set.
+//! 
+//! ## Crates
+//! This crate provides all of the needed tools to run a boomerang australia game.
+//! But the other crates in this repository are totally generic to what rule set is
+//! being used, in fact [`server`] is generic to what type of turn based game is being played.
+//! 
+//! The [`tui`] however is implemented for something similar to the boomerang australia game. 
+
+
 use std::{fs::File, io::Write, panic::set_hook, sync::Arc};
 
 use clap::{Parser, ValueEnum};
@@ -10,20 +23,19 @@ use crate::australia::{
     player::{manage_event, read_event},
     protocol::Message,
     rules::Australia,
-    tui::pages::{main_page::DefaultMainPage, map_page::DefaultTuiMap},
+    tui::pages::{main_page::MainPage, map_page::DefaultTuiMap},
     TuiDefaults,
 };
-
-#[deny(clippy::all)]
 mod australia;
 
+/// The modes that the app can run in
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum Mode {
     Server,
     Client,
 }
 
-#[derive(Parser)] // requires `derive` feature
+#[derive(Parser)]
 #[command(
     author = "Ivar Jönsson <ivajns-9@student.ltu.se>",
     version = "0.0.1",
@@ -43,7 +55,7 @@ async fn player_main() {
     let (feedback_writer, feedback_reader) = tokio::sync::broadcast::channel::<Message>(32);
 
     let join_handle = {
-        let main_page = DefaultMainPage::new();
+        let main_page = MainPage::new();
         let map_page = DefaultTuiMap::new();
         let ui = Arc::new(TuiDefaults::init(main_page, map_page));
         TuiDefaults::subscribe(ui.clone(), reader, feedback_writer);

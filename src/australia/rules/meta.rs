@@ -1,4 +1,9 @@
+//! Defines the game meta data type
+//! 
+//! This type hold all the data about the game that could be relevant at runtime.
+
 use server::engine::rules::{Action, Error, New};
+use tui::ui::UiElement;
 
 use crate::australia::protocol::Event;
 

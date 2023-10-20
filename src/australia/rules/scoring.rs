@@ -1,3 +1,5 @@
+//! Defines methods and types to help with scoring a game.
+
 use serde::{Deserialize, Serialize};
 
 use super::{

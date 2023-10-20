@@ -2,13 +2,11 @@
 //!
 //! This popup is shown at the end of the game
 
-use std::fmt::format;
-
 use log::{error, info};
 use ratatui::{
-    prelude::{Alignment, Constraint, Direction, Layout},
+    prelude::{Constraint, Direction, Layout},
     style::Stylize,
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear},
 };
 use tokio::sync::broadcast;
 use tui::tui::{
@@ -69,14 +67,22 @@ impl TuiPage for Score {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area)
             .to_vec();
+        let trophy = |idx:usize| -> String {
+            match idx {
+                0 => "🏆",
+                1 => "🥈",
+                2 => "🥉",
+                _ => ""
+            }.to_owned()
+        };
         for (idx, col) in scoring_cols.iter().enumerate() {
             let score_area = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .split(*col);
             if let Some((id, score)) = self.scores.get(idx) {
-                let label1 = format!("#{:?} : You", idx + 1);
-                let label2 = format!("#{:?} : Player {:?}", idx + 1, id);
+                let label1 = format!("#{:?} : You {}", idx + 1,trophy(idx));
+                let label2 = format!("#{:?} : Player {:?} {}", idx + 1, id,trophy(idx));
                 let block = Block::default()
                     .borders(Borders::ALL)
                     .title(match *id == self.id {
@@ -87,8 +93,8 @@ impl TuiPage for Score {
                 frame.render_widget(block, score_area[0]);
             }
             if let Some((id, score)) = self.scores.get(idx + 2) {
-                let label1 = format!("#{:?} : You", idx);
-                let label2 = format!("#{:?} : Player {:?}", idx, id);
+                let label1 = format!("#{:?} : You {}", idx + 1,trophy(idx));
+                let label2 = format!("#{:?} : Player {:?} {}", idx + 1, id,trophy(idx));
                 let block = Block::default()
                     .borders(Borders::ALL)
                     .title(match *id == self.id {

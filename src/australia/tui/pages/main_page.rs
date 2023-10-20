@@ -1,3 +1,9 @@
+//! Defines the main page.
+//! 
+//! This is where the player can select cards to discard or cards
+//! to show.
+//! They can also browse their show hand.
+
 use std::marker::PhantomData;
 
 use log::info;
@@ -35,7 +41,7 @@ pub trait CardArea<C: Card> {
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect, title: &str, outline: Color);
 }
 
-pub struct DefaultMainPage<C: Card, H: Hand<C> + CardArea<C>> {
+pub struct MainPage<C: Card, H: Hand<C> + CardArea<C>> {
     hand: H,
     discard_pile: H,
     card: PhantomData<C>,
@@ -44,7 +50,7 @@ pub struct DefaultMainPage<C: Card, H: Hand<C> + CardArea<C>> {
     feedback_channel: Option<broadcast::Sender<Message>>,
     requested_action: Option<Message>,
 }
-impl<C: Card, H: Hand<C> + CardArea<C>> DefaultMainPage<C, H> {
+impl<C: Card, H: Hand<C> + CardArea<C>> MainPage<C, H> {
     pub fn new() -> Self {
         Self {
             hand: H::new(),
@@ -64,7 +70,7 @@ impl<C: Card, H: Hand<C> + CardArea<C>> DefaultMainPage<C, H> {
     }
 }
 
-impl<C: Card, H: Hand<C> + CardArea<C> + std::fmt::Debug> DefaultMainPage<C, H> {
+impl<C: Card, H: Hand<C> + CardArea<C> + std::fmt::Debug> MainPage<C, H> {
     pub fn add_card(&mut self, card: C) {
         self.hand.add_card(card);
     }
@@ -99,7 +105,7 @@ impl<C: Card, H: Hand<C> + CardArea<C> + std::fmt::Debug> DefaultMainPage<C, H> 
 }
 
 impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> EventApi
-    for DefaultMainPage<AustraliaCard, H>
+    for MainPage<AustraliaCard, H>
 {
     fn handle_input(&mut self, control: Controls) {
         let focused = match self.focused {
@@ -146,7 +152,7 @@ impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> EventApi
 }
 
 impl<H: Hand<AustraliaCard> + CardArea<AustraliaCard>> TuiPage
-    for DefaultMainPage<AustraliaCard, H>
+    for MainPage<AustraliaCard, H>
 {
     fn draw<B: Backend>(&mut self, frame: &mut Frame<B>, block: Rect) {
         let layout: std::rc::Rc<[Rect]> = Layout::default()

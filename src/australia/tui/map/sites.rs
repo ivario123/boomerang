@@ -1,32 +1,26 @@
+//! Maps out all of the australian regions 
+
 use tui::maps::sites::{Region as RegionTrait, TouristSite};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Region {
-    WesternAustralia,
-    NorthernTerritory,
-    Queensland,
-    SouthAustralia,
-    NewSouthWhales,
-    Victoria,
-    Tasmania,
-}
+use crate::australia::rules::cards::AustralianRegion;
 
-impl RegionTrait for Region {
+impl RegionTrait for AustralianRegion {
     fn default() -> Self {
-        Region::WesternAustralia
+        AustralianRegion::WesternAustralia
     }
     fn coordinates(&self) -> (f64, f64) {
         match self {
-            Region::WesternAustralia => (82.0, 220.0),
-            Region::NorthernTerritory => (220.0, 300.0),
-            Region::Queensland => (340.0, 280.0),
-            Region::SouthAustralia => (230.0, 180.0),
-            Region::NewSouthWhales => (360.0, 150.0),
-            Region::Victoria => (340.0, 87.5),
-            Region::Tasmania => (355.0, 50.0),
+            AustralianRegion::WesternAustralia => (82.0, 220.0),
+            AustralianRegion::NorthernTerritory => (220.0, 300.0),
+            AustralianRegion::Queensland => (340.0, 280.0),
+            AustralianRegion::SouthAustralia => (230.0, 180.0),
+            AustralianRegion::NewSouthWhales => (360.0, 150.0),
+            AustralianRegion::Victoria => (340.0, 87.5),
+            AustralianRegion::Tasmania => (355.0, 50.0),
         }
     }
 }
+
 
 macro_rules! tourist_sites {
 	($(
@@ -36,12 +30,12 @@ macro_rules! tourist_sites {
 			)+
 		}
 	)+) => {
-		impl Region{
-			pub fn sites() -> Vec<TouristSite<Region>>{
+		impl AustralianRegion{
+			pub fn sites() -> Vec<TouristSite<AustralianRegion>>{
 				[
 					$(
 						$(
-							TouristSite::new($site.to_owned(), $id ,Region::$region),
+							TouristSite::new($site.to_owned(), $id ,AustralianRegion::$region),
 						)+
 					)+
 				].to_vec()

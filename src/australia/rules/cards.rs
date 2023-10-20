@@ -1,3 +1,8 @@
+//! Defines all of the cards as types
+//! 
+//! Also defines all of the data
+//! that relates to cards a enums
+
 use log::error;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};

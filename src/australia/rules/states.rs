@@ -1,3 +1,8 @@
+//! Defines the game state machine states
+//! 
+//! This is where the main game logic is implemented
+
+
 extern crate server;
 use std::marker::PhantomData;
 

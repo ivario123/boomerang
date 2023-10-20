@@ -41,6 +41,7 @@ pub async fn read_event(mut read_part: OwnedReadHalf, channel: broadcast::Sender
     }
 }
 
+/// Converts tcp [`Event`]s to intra app [`Message`]s.
 pub async fn manage_event(
     writer: tokio::sync::broadcast::Sender<Message>,
     mut feedback_reader: tokio::sync::broadcast::Receiver<Message>,
@@ -57,6 +58,9 @@ pub async fn manage_event(
         info!("Server sent {:?}", event);
 
         let to_send: Event = match event {
+            // =======================================================================
+            //                      Requires player intervention
+            // =======================================================================
             Event::ReadyCheck => {
                 writer.send(Message::ReadyCheck).unwrap();
                 #[allow(unused_assignments)]
@@ -83,11 +87,7 @@ pub async fn manage_event(
                 }
                 ret
             }
-            Event::Deal(card) => {
-                writer.send(Message::Deal(card)).unwrap();
-                Event::Accept
-            }
-            Event::UnexpectedMessage => continue,
+
             Event::DiscardRequest => {
                 writer.send(Message::DiscardQuery).unwrap();
                 #[allow(unused_assignments)]
@@ -125,6 +125,32 @@ pub async fn manage_event(
                 }
                 Event::Show(ret)
             }
+            Event::ScoreActivityQuery(options) => {
+                writer.send(Message::ScoreActivityQuery(options)).unwrap();
+                #[allow(unused_assignments)]
+                let mut ret = None;
+                loop {
+                    warn!("Waiting for message from frontend");
+                    match feedback_reader.recv().await {
+                        Ok(Message::ScoreActivity(x)) => {
+                            info!("Message received from frontend");
+                            ret = x;
+                            break;
+                        }
+                        Err(_) => {
+                            writer.send(Message::Exit).unwrap();
+                            return;
+                        }
+                        _ => {
+                            continue;
+                        }
+                    }
+                }
+                Event::ScoreActivity(ret)
+            }
+            // =======================================================================
+            //                          Requires ui action
+            // =======================================================================
             Event::ShowPile(idx, cards, visited) => {
                 info!("Server sent ShowPile({:?},{:?})", idx, cards);
                 writer
@@ -132,15 +158,9 @@ pub async fn manage_event(
                     .unwrap();
                 continue;
             }
-            Event::ReassignHand(new_hand) => {
-                info!("Replacing hand with with {:?}", new_hand);
-                writer.send(Message::ReassignHand(new_hand)).unwrap();
-                info!("Replaced");
+            Event::Deal(card) => {
+                writer.send(Message::Deal(card)).unwrap();
                 Event::Accept
-            }
-            Event::WaitingForPlayers => {
-                writer.send(Message::WaitingForPlayers).unwrap();
-                continue;
             }
             Event::Sync(player) => {
                 loop {
@@ -168,49 +188,42 @@ pub async fn manage_event(
                 }
                 Event::Accept
             }
-            Event::ScoreActivityQuery(options) => {
-                writer.send(Message::ScoreActivityQuery(options)).unwrap();
-                #[allow(unused_assignments)]
-                let mut ret = None;
-                loop {
-                    warn!("Waiting for message from frontend");
-                    match feedback_reader.recv().await {
-                        Ok(Message::ScoreActivity(x)) => {
-                            info!("Message received from frontend");
-                            ret = x;
-                            break;
-                        }
-                        Err(_) => {
-                            writer.send(Message::Exit).unwrap();
-                            return;
-                        }
-                        _ => {
-                            continue;
-                        }
-                    }
-                }
-                Event::ScoreActivity(ret)
-            }
-            Event::NewRound => {
-                writer.send(Message::NewRound).unwrap();
-                continue;
+            Event::ReassignHand(new_hand) => {
+                info!("Replacing hand with with {:?}", new_hand);
+                writer.send(Message::ReassignHand(new_hand)).unwrap();
+                info!("Replaced");
+                Event::Accept
             }
             Event::FinalResult(uid, scores) => {
                 // At this point we should disconnect
                 writer.send(Message::FinalResult(uid, scores)).unwrap();
                 return;
             }
+
+            // =======================================================================
+            //                          Automated response
+            // =======================================================================
+            Event::UnexpectedMessage => continue,
+            Event::WaitingForPlayers => {
+                writer.send(Message::WaitingForPlayers).unwrap();
+                continue;
+            }
+
+            Event::NewRound => {
+                writer.send(Message::NewRound).unwrap();
+                continue;
+            }
             unexpected => {
                 error!("Got unhandled message: {:?}", unexpected);
                 continue;
             }
-        }
-        .into();
+        };
 
         send_event(&mut write_part, to_send).await;
     }
 }
 
+/// Small little tcp sender.
 async fn send_event(write_part: &mut OwnedWriteHalf, event: Event) {
     let to_send: Vec<u8> = event.into();
     write_part.write_all(&to_send).await.unwrap();

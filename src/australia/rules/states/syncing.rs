@@ -1,3 +1,5 @@
+//! Defines a state where the server sends it current state of the player to that player
+//! to ensure that they are not out of sync.
 use log::info;
 
 use crate::{
@@ -52,7 +54,7 @@ impl<Next: AsMetaData + Send + Sync + 'static> GameState for Syncing<Next> {
         &mut self,
         _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        todo!()
+        Err(Error::UnexpectedMessage)
     }
 
     fn register_response(

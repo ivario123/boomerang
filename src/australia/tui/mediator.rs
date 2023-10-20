@@ -1,6 +1,5 @@
-/**
- * asd
- */
+//! Defines the mediator between the
+//! [`player`](crate::australia::player) and the [`tui`]
 use std::sync::Arc;
 
 use log::{error, info};
@@ -10,7 +9,7 @@ use tui::{
         popup::{self, info::Info, select::Select, Popup},
         Tui, TuiMonitor,
     },
-    ui::Hand,
+    ui::{Hand, UiElement},
 };
 
 use crate::{
@@ -23,14 +22,14 @@ use crate::{
 
 use super::{
     map::australia::Map,
-    pages::{main_page::DefaultMainPage, map_page, score_popup::Score, show_page::ShowPage},
+    pages::{main_page::MainPage, map_page, score_popup::Score, show_page::ShowPage},
     ScoreList,
 };
 
 #[async_trait::async_trait]
 impl TuiMonitor<Message, Info, Select>
     for Tui<
-        DefaultMainPage<AustraliaCard, AustraliaPlayer>,
+        MainPage<AustraliaCard, AustraliaPlayer>,
         map_page::DefaultTuiMap<Map, ScoreList>,
         ShowPage<AustraliaCard, AustraliaPlayer>,
         Info,
@@ -95,6 +94,8 @@ impl TuiMonitor<Message, Info, Select>
         mut channel: broadcast::Receiver<Message>,
         transmit: broadcast::Sender<Message>,
     ) {
+        // If there was time I would clean up this function to be multiple functions but alas I am out of time
+
         loop {
             // Poll for events every second
             let msg = channel.recv().await;
@@ -223,7 +224,11 @@ impl TuiMonitor<Message, Info, Select>
                 //                              Automated responses
                 // ================================================================================
                 // -------------------------            Updates           -------------------------
-                Message::Deal(card) => page.write().await.main_page().add_card(card),
+                Message::Deal(card) => {
+                    info!("Dealing card");
+                    page.write().await.main_page().add_card(card);
+                    info!("Dealt card");
+                }
                 Message::ShowOtherHand(uid, cards, visited) => {
                     let _new_player = page.write().await.paginate().replace_into(ShowPage::new(
                         uid,

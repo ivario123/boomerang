@@ -1,12 +1,18 @@
+//! Defines a state where the cards are passed either to the right or to the left
+//!
+//! The only time the cards are passed to the left is when the round is over
+//! and scoring is about to begin
+//! 
 use std::marker::PhantomData;
 
 use log::info;
 
 use crate::{
-    engine::rules::{Action, Error, New, Received}, australia::{rules::meta::GameMetaData, protocol::Event},
+    australia::{protocol::Event, rules::meta::GameMetaData},
+    engine::rules::{Action, Error, New, Received},
 };
 
-use super::{GameState, PassHand, AsMetaData, Syncing};
+use super::{AsMetaData, GameState, PassHand, Syncing};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
@@ -73,7 +79,7 @@ impl<Next: AsMetaData + Send + Sync + From<GameMetaData> + 'static> GameState fo
         &mut self,
         _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        todo!()
+        Err(Error::UnexpectedMessage)
     }
 
     fn register_response(

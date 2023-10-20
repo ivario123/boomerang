@@ -1,3 +1,8 @@
+//! Defines the state of the game where
+//! the scores are assigned to the players
+//! typically done at either the end of a round
+//! or the end of the game.
+//! 
 use log::info;
 
 use crate::{
@@ -88,7 +93,7 @@ impl GameState for Scoring {
         &mut self,
         _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        todo!()
+        Err(Error::UnexpectedMessage)
     }
 
     fn register_response(

@@ -1,3 +1,5 @@
+//! Defines a final state where the  score is distributed to the players.
+
 use log::info;
 
 use crate::{

@@ -1,3 +1,9 @@
+//! Defines the map page layout and renders it.
+//! 
+//! This shows the player where it has been so far, 
+//! helping in avoiding revisiting the same spot twice.
+
+
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
     symbols::Marker,

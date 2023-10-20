@@ -1,3 +1,5 @@
+//! Defines a state where the cards are being dealt to the players
+
 use log::info;
 
 use crate::{
@@ -71,8 +73,8 @@ impl GameState for DealingCards {
         &mut self,
         _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        // Check if that player has an outstanding action
-        todo!()
+        // Check if that player has an outstanding action        
+        Err(Error::UnexpectedMessage)
     }
 
     fn register_response(

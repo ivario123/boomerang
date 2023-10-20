@@ -1,3 +1,4 @@
+//! Defines the page where other players show hand is shown
 use std::marker::PhantomData;
 
 use ratatui::{

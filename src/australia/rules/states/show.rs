@@ -1,3 +1,6 @@
+//! Defines a state where the player is asked to show a card
+//! and then that pile of show cards is shown to the rest of the players.
+
 use log::info;
 
 use crate::{
@@ -100,7 +103,7 @@ impl GameState for ShowCard {
         &mut self,
         _action: &Action<New, Event>,
     ) -> Result<Option<Box<dyn GameState>>, Error> {
-        todo!()
+        Err(Error::UnexpectedMessage)
     }
 
     fn register_response(

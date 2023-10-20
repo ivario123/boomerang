@@ -1,3 +1,9 @@
+//! Implementations of [`tui`] related things.
+//!
+//! This file and it's sub modules implement renderable or
+//! tui related code. This allows the tui to work with boomerang
+//! australia specific things
+
 use ratatui::{
     prelude::{Backend, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
@@ -21,6 +27,14 @@ pub mod map;
 pub mod mediator;
 pub mod pages;
 
+/// A wrapper for [`Vec<Scoring>`]
+///
+/// This is needed due to implementations
+/// on foreign types is disallowed.
+///
+/// ## Drawable
+///
+/// This type is a valid [`TuiPage`]
 pub struct ScoreList(Vec<Scoring>);
 
 impl EventApi for ScoreList {
@@ -34,22 +48,17 @@ impl Default for ScoreList {
     }
 }
 impl ScoreList {
-    // Helper function to format elements as "{el1} + {el2} + .... + {last} = {sum}"
     fn format_elements(&self, elements: Vec<usize>) -> String {
-        // Check if the elements vector is empty
         if elements.is_empty() {
             return String::from("{}");
         }
 
-        // If there's only one element, format it without brackets
         if elements.len() == 1 {
             return elements[0].to_string();
         }
 
-        // Create a vector to hold the formatted elements
         let mut formatted_elements = Vec::new();
 
-        // Format elements as "{el1} + {el2} + .... + {last} = {sum}"
         for el in &elements {
             formatted_elements.push(format!("{}", el));
         }

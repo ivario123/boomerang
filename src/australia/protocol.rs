@@ -1,3 +1,9 @@
+//! Defines communication message space for player and server.
+//! 
+//! The tcp protocol is defines as  [`Event`] and the intra app protocol
+//! is defined in [`Message`].
+
+
 use serde::{Deserialize, Serialize};
 use server::engine::event::{BackendEvent, GameEvent};
 use tui::ui::UiMessage;
@@ -14,34 +20,72 @@ use super::rules::{
 /// To check wether an event requires a response use [`GameEvent::requires_response`]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Event {
+    /// Server is ready to start
+    /// 
+    /// This requires a [`Accept`](Event::Accept) or a [`Deny`](Event::Deny) response
+    /// any other response will be disregarded
     ReadyCheck,
+    /// Response sent from player
     Accept,
+    /// Response sent from player
     Deny,
+    /// Server has dealt a card to the receiving player
+    /// 
+    /// This requires a [`Accept`](Event::Accept)  response
+    /// any other response will be disregarded
     Deal(AustraliaCard),
-    Hand(Vec<AustraliaCard>),
+    /// Asks the player to show a card
+    /// 
+    /// This requires a [`Show`](Event::Show(())) response.
     ShowRequest,
     /// Shows the given card to the other players and discards it.
     Show(usize),
+    /// Shows the player what another player has in their show pile
     ShowPile(u8, Vec<AustraliaCard>, Vec<char>),
+    /// Asks the player to discard a card
+    /// 
+    /// This requires a [`Show`](Event::Discard(())) response.
     DiscardRequest,
     /// Discards the card in the players hand at that given index.
     Discard(usize),
+    /// Asks the player activity they want to score this turn
+    /// 
+    /// This requires a [`ScoreActivity`](Event::ScoreActivity(())) response.
     ScoreActivityQuery(Vec<AustralianActivity>),
+    /// Scores the given activity if any
     ScoreActivity(Option<AustralianActivity>),
+    /// Overwrites the current hand replacing it with a new one.
     ReassignHand(Vec<AustraliaCard>),
+    /// Status message
     WaitingForPlayers,
-    WaitingForPlayer,
+    /// Here fore completeness sake
+    /// 
+    /// Maps from [`Connected`](BackendEvent::Connected(()))
     Connected(u8),
+
+    /// Server did not expect that response
     UnexpectedMessage,
+    /// Unused here fore completeness sake.
     Resend,
+    /// Syncs player game data with the servers.
+    /// 
+    /// This requires a [`Accept`](Event::Accept)  response
+    /// any other response will be disregarded
     Sync(AustraliaPlayer),
+    /// Status message informs player that the new round has started
     NewRound,
+    /// Status message informs players that the game cannot start yet
     LobbyFull,
+    /// Status message informs players of game final result.
     FinalResult(u8, Vec<(u8, Scoring)>),
 }
 
 /// Messages passed between [`tui`] and
 /// this crate
+/// 
+/// This is more or less a subset of [`Event`]
+/// so for detailed explanations read the docs 
+/// for [`Event`]
 #[derive(Debug, Clone)]
 pub enum Message {
     WaitingForPlayers,
@@ -96,7 +140,6 @@ impl GameEvent for Event {
         match self {
             Event::ReadyCheck => true,
             Event::Deal(_) => true,
-            Event::Hand(_) => true,
             Event::DiscardRequest => true,
             Event::ShowRequest => true,
             Event::ReassignHand(_) => true,

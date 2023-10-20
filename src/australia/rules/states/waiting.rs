@@ -1,3 +1,5 @@
+//! Defines a waiting state, this is the initial state although it could be used at later stages too.
+
 use log::info;
 
 use crate::{
@@ -46,7 +48,7 @@ impl<Next: AsMetaData + Send + 'static> GameState for WaitingForPlayers<Next> {
                 // players disconnected it might be another state
                 let state = std::mem::replace(&mut self.next_state, None);
                 return (
-                    tokio::time::Duration::from_millis(1),
+                    tokio::time::Duration::from_millis(1000),
                     actions,
                     Some(match state {
                         Some(state) => state,

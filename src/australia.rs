@@ -8,7 +8,7 @@ use self::{
     tui::{
         map::australia::Map,
         pages::{
-            main_page::DefaultMainPage, map_page::DefaultTuiMap, score_popup::Score,
+            main_page::MainPage, map_page::DefaultTuiMap, score_popup::Score,
             show_page::ShowPage,
         },
         ScoreList,
@@ -21,7 +21,7 @@ pub mod rules;
 pub mod tui;
 
 pub type TuiDefaults = Tui<
-    DefaultMainPage<AustraliaCard, AustraliaPlayer>,
+    MainPage<AustraliaCard, AustraliaPlayer>,
     DefaultTuiMap<Map, ScoreList>,
     ShowPage<AustraliaCard, AustraliaPlayer>,
     Info,

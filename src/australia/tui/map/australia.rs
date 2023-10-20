@@ -1,24 +1,27 @@
-use super::sites::Region;
+//! Defines a dot matrix map of australia.
+
 use ratatui::{style::Color, widgets::canvas::Shape};
 use tui::maps::{sites::TouristSite, Map as MapTrait};
 
+use crate::australia::rules::cards::AustralianRegion;
+
 pub struct Map {
     color: Color,
-    sites: Vec<TouristSite<Region>>,
+    sites: Vec<TouristSite<AustralianRegion>>,
 }
 impl MapTrait for Map {
-    type REGION = Region;
+    type REGION = AustralianRegion;
     const WIDTH: usize = 458;
     const HEIGHT: usize = 418;
 
     fn default() -> Self {
         Self {
             color: Color::White,
-            sites: Region::sites(),
+            sites: AustralianRegion::sites(),
         }
     }
 
-    fn render(&self, ctx: &mut ratatui::widgets::canvas::Context<'_>) -> Vec<TouristSite<Region>> {
+    fn render(&self, ctx: &mut ratatui::widgets::canvas::Context<'_>) -> Vec<TouristSite<AustralianRegion>> {
         ctx.draw(self);
         self.sites.to_vec()
     }
