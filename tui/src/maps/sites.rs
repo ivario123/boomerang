@@ -2,7 +2,6 @@ use ratatui::style::Color;
 use ratatui::widgets::canvas::Line;
 use std::fmt::Debug;
 
-pub mod australia;
 pub trait Region: Clone + Copy + Debug + PartialEq {
     /// Returns coordinates to where the labels should start
     /// appearing
@@ -15,13 +14,13 @@ pub trait Region: Clone + Copy + Debug + PartialEq {
 #[derive(Clone, Debug)]
 pub struct TouristSite<R: Region> {
     name: String,
-    id: String,
+    id: char,
     region: R,
     completed: bool,
 }
 
 impl<'a, R: Region> TouristSite<R> {
-    pub fn get_id(&self) -> String {
+    pub fn get_id(&self) -> char {
         self.id.clone()
     }
 
@@ -33,7 +32,7 @@ impl<'a, R: Region> TouristSite<R> {
     }
     pub fn render(self, ctx: &mut ratatui::widgets::canvas::Context<'a>, offset: f64) {
         let (x, y) = self.region.coordinates();
-        let id: String = self.id;
+        let id: String = self.id.to_string().to_owned();
         ctx.layer();
         match self.completed {
             true => ctx.print(x + offset, y, id),
@@ -75,11 +74,15 @@ impl<'a, R: Region> TouristSite<R> {
     /// Draws the site, if the players has completed it
     /// it will be golden if not it will be gray
     pub fn get<'b>(&'a self) -> ((f64, f64), String, bool) {
-        (self.region.coordinates(), self.id.clone(), self.completed)
+        (
+            self.region.coordinates(),
+            self.id.to_string().to_owned().clone(),
+            self.completed,
+        )
     }
     /// Creates a new Site at the given
     /// site
-    pub fn new(name: String, id: String, region: R) -> Self {
+    pub fn new(name: String, id: char, region: R) -> Self {
         Self {
             name,
             id,

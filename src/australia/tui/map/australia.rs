@@ -1,25 +1,27 @@
-use super::{
-    sites::{australia::Region, TouristSite},
-    Color, Map as MapTrait,
-};
+//! Defines a dot matrix map of australia.
+
+use ratatui::{style::Color, widgets::canvas::Shape};
+use tui::maps::{sites::TouristSite, Map as MapTrait};
+
+use crate::australia::rules::cards::AustralianRegion;
 
 pub struct Map {
     color: Color,
-    sites: Vec<TouristSite<Region>>,
+    sites: Vec<TouristSite<AustralianRegion>>,
 }
-impl super::Map for Map {
-    type REGION = Region;
+impl MapTrait for Map {
+    type REGION = AustralianRegion;
     const WIDTH: usize = 458;
     const HEIGHT: usize = 418;
 
     fn default() -> Self {
         Self {
             color: Color::White,
-            sites: Region::sites(),
+            sites: AustralianRegion::sites(),
         }
     }
 
-    fn render(&self, ctx: &mut ratatui::widgets::canvas::Context<'_>) -> Vec<TouristSite<Region>> {
+    fn render(&self, ctx: &mut ratatui::widgets::canvas::Context<'_>) -> Vec<TouristSite<AustralianRegion>> {
         ctx.draw(self);
         self.sites.to_vec()
     }
@@ -3538,49 +3540,6 @@ impl super::Map for Map {
             (149, 284),
             (151, 284),
             (152, 284),
-            (153, 284),
-            (252, 284),
-            (253, 284),
-            (282, 284),
-            (283, 284),
-            (287, 284),
-            (319, 284),
-            (320, 284),
-            (430, 284),
-            (431, 284),
-            (432, 284),
-            (434, 284),
-            (435, 284),
-            (54, 285),
-            (55, 285),
-            (56, 285),
-            (57, 285),
-            (148, 285),
-            (149, 285),
-            (151, 285),
-            (253, 285),
-            (255, 285),
-            (283, 285),
-            (284, 285),
-            (288, 285),
-            (289, 285),
-            (319, 285),
-            (320, 285),
-            (431, 285),
-            (432, 285),
-            (56, 286),
-            (149, 286),
-            (150, 286),
-            (254, 286),
-            (256, 286),
-            (281, 286),
-            (282, 286),
-            (283, 286),
-            (287, 286),
-            (319, 286),
-            (429, 286),
-            (430, 286),
-            (55, 287),
             (56, 287),
             (57, 287),
             (146, 287),
@@ -4971,7 +4930,7 @@ impl super::Map for Map {
         self.color.clone()
     }
 }
-impl super::Shape for Map {
+impl Shape for Map {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
         for (x, y) in self.map() {
             let y = Self::HEIGHT - y;

@@ -1,112 +1,61 @@
-use crate::engine::card::AustraliaCards;
+use serde::{Deserialize, Serialize};
 
-use super::card::Card;
+pub trait GameEvent:
+    Clone
+    + Serialize
+    + for<'a> Deserialize<'a>
+    + PartialEq
+    + From<BackendEvent>
+    + TryInto<BackendEvent>
+    + Into<Vec<u8>>
+    + std::fmt::Debug
+    + Send
+    + Sync
+{
+    fn requires_response(&self) -> bool;
+}
 
-#[derive(Debug, Clone, Copy)]
-/// Definiton of protocol events.
-pub enum Event {
-    Deal(AustraliaCards),
-    ListLobby,
-    CreateLobby,
-    JoinLobby(u8),
-    KeepAlive,
-    KeepAliveResponse,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Definition of protocol events.
+pub enum BackendEvent {
     Connected(u8),
     UnexpectedMessage,
+    Resend,
 }
 
-/// Enumerates all of the possible errors for the [`Event`] enum
-#[derive(Debug)]
-pub enum EventError {
-    /// Thrown when the parsing of a bitstream fails.
-    InvalidBitStream,
+impl GameEvent for BackendEvent {
+    fn requires_response(&self) -> bool {
+        false
+    }
 }
 
-impl<'a> Into<Vec<u8>> for &'a Event {
+impl Into<Vec<u8>> for BackendEvent {
     fn into(self) -> Vec<u8> {
-        use Event::*;
-        let mut ret = match self {
-            Deal(card) => {
-                let card_rerp: &'a [u8] = card.as_u8();
-                let ret = [&[1], &card_rerp[..]].concat();
-                ret
-            }
-            ListLobby => {
-                vec![2]
-            }
-            CreateLobby => {
-                vec![3]
-            }
-            JoinLobby(id) => Vec::from([4, *id]),
-            KeepAlive => vec![5],
-            KeepAliveResponse => vec![6],
-            Connected(uid) => {
-                vec![7, *uid]
-            }
-            UnexpectedMessage => {
-                vec![8]
-            }
-        };
-        ret.push(0);
-        return ret;
+        serde_json::to_string(&self).unwrap().into_bytes()
     }
 }
 
-impl TryInto<Event> for Vec<&u8> {
-    type Error = EventError;
-    fn try_into(self) -> Result<Event, EventError> {
-        use Event::*;
-        // First element identifies type of event
-        match *self[0] {
-            1 => match self.len() > 1 {
-                false => Err(EventError::InvalidBitStream),
-                _ => match AustraliaCards::from_u8(&self[1..]) {
-                    Ok(card) => Ok(Deal(card)),
-                    Err(_) => Err(EventError::InvalidBitStream),
-                },
-            },
-            2 => Ok(ListLobby),
-            3 => Ok(CreateLobby),
-            4 => match self.len() > 1 {
-                true => Ok(JoinLobby(*self[1])),
-                false => Err(EventError::InvalidBitStream),
-            },
-            5 => Ok(KeepAlive),
-            6 => Ok(KeepAliveResponse),
-            7 => match self.len() > 1 {
-                true => Ok(Connected(*self[1])),
-                false => Err(EventError::InvalidBitStream),
-            },
-            8 => Ok(UnexpectedMessage),
-            _ => Err(EventError::InvalidBitStream),
-        }
+#[cfg(test)]
+mod test {
+    use super::BackendEvent as Event;
+    #[test]
+    pub fn test_serialize_distinct_type() {
+        //
+        let data = Event::Connected(0);
+        let serialized = serde_json::to_string(&data).unwrap();
+        let intermediate = serialized.as_bytes();
+        let returned_string = String::from_utf8(intermediate.to_vec()).unwrap();
+        let parsed = serde_json::from_str(&returned_string).unwrap();
+        assert_eq!(data, parsed);
     }
-}
-
-pub struct EventList(pub Vec<Result<Event, EventError>>);
-
-impl Into<EventList> for Vec<u8> {
-    fn into(self) -> EventList {
-        // First find all 0 indecies
-        let mut indecies: Vec<(usize, usize)> = Vec::new();
-        let mut prev_idx = 0;
-        for (idx, el) in self.iter().enumerate() {
-            match self.get(idx + 1) {
-                Some(next) => {
-                    if *el != 0 && *next == 0 {
-                        indecies.push((prev_idx, idx + 1));
-                        prev_idx = idx + 2;
-                    }
-                }
-                _ => {}
-            }
-        }
-        let mut events = Vec::new();
-        for (start, stop) in indecies {
-            let msg: Vec<&u8> = self[start..stop].iter().collect();
-            events.push(msg.try_into());
-            // First element identifies type of event
-        }
-        EventList(events)
+    #[test]
+    pub fn test_serialize_vec() {
+        //
+        let data = vec![Event::Connected(0)];
+        let serialized = serde_json::to_string(&data).unwrap();
+        let intermediate = serialized.as_bytes();
+        let returned_string = String::from_utf8(intermediate.to_vec()).unwrap();
+        let parsed = serde_json::from_str::<Vec<Event>>(&returned_string).unwrap();
+        assert_eq!(data, parsed);
     }
 }

@@ -1,18 +1,15 @@
 mod tcp;
-pub use tcp::*;
-
-use crate::engine::event::Event;
 use async_trait::async_trait;
-use std::any::TypeId;
-use std::cell::RefCell;
-use std::cmp::PartialOrd;
+pub use tcp::*;
 use tokio;
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast;
+
+use super::event;
 
 #[derive(Debug, Clone, Copy)]
 pub enum PlayerError {
     /// Thrown when no response was delivered within the acceptable time
-    TimeOut,
+    _TimeOut,
 
     /// Thrown when tcp write all breaks
     SendMessageError,
@@ -21,26 +18,26 @@ pub enum PlayerError {
     Disconnected,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Message {
-    Recived {
+#[derive(Debug, Clone)]
+pub enum Message<Event: event::GameEvent> {
+    Received {
         event: Result<Event, PlayerError>,
         user: usize,
     },
 }
 
 #[async_trait]
-pub trait Reciver: std::fmt::Debug {
-    fn subscribe(&mut self) -> Result<Receiver<Message>, PlayerError>;
+pub trait Receiver<Event: event::GameEvent>: std::fmt::Debug {
+    fn subscribe(&mut self) -> Result<broadcast::Receiver<Message<Event>>, PlayerError>;
     async fn receive(mut self) -> Result<(), PlayerError>;
 }
-pub trait ReasignUid {
-    fn re_asign_uid(self) -> Self;
+pub trait ReassignUid {
+    fn re_assign_uid(self) -> Self;
 }
 
 #[async_trait]
-pub trait Player: std::fmt::Debug + Send {
-    fn getid(&self) -> usize;
+pub trait Player<Event: event::GameEvent>: std::fmt::Debug + Send {
+    fn get_id(&self) -> usize;
     async fn send(&mut self, event: Event) -> Result<(), PlayerError>;
     fn send_blocking(&mut self, event: Event) -> Result<(), PlayerError> {
         async_std::task::block_on(async {
@@ -55,12 +52,6 @@ pub trait Id {
     fn identifier(&self) -> String;
 }
 
-impl<P: Player> Id for P {
-    fn identifier(&self) -> String {
-        (self as &dyn Player).identifier()
-    }
-}
-
 pub trait EqPlayer {
     fn identifier(&self) -> String;
     fn eq(&self, other: impl Id) -> bool {
@@ -68,28 +59,20 @@ pub trait EqPlayer {
     }
 }
 
-impl dyn Player {
+impl<Event: event::GameEvent> dyn Player<Event> {
+    #[allow(dead_code)]
     fn eq(&self, other: impl Id) -> bool {
         self.identifier() == other.identifier()
     }
 }
 
-pub trait Splittable<R: Reciver> {
-    type WritePart: Player;
-    fn split(self) -> (Self::WritePart, R);
+pub trait Split<Event: event::GameEvent, const BUFFER_SIZE: usize> {
+    type WritePart: Player<Event>;
+    type ReadPart: Receiver<Event>;
+    fn split(self) -> (Self::WritePart, Self::ReadPart);
 }
 
-pub trait New<O: Player> {
-    fn new(self, uid: usize) -> O;
-}
-
-#[cfg(test)]
-mod test {
-    use std::net::TcpListener;
-    #[test]
-    fn send_tcp() {
-        // 1. start
-
-        unimplemented!();
-    }
+pub trait New<Event: event::GameEvent, const CAPACITY: usize> {
+    type Output: Player<Event>;
+    fn new(self, uid: usize) -> Self::Output;
 }

@@ -1,17 +1,9 @@
+pub mod sites;
+
 use ratatui::style::Color;
 use ratatui::widgets::canvas::Shape;
 
 use self::sites::{Region, TouristSite};
-
-mod australia;
-pub mod sites;
-
-/// Exports all objects relevant to the boomerang australia map.
-pub mod boomerang_australia {
-    pub use super::australia::Map;
-    pub use super::sites::australia::Region;
-}
-
 pub trait Map: Shape {
     type REGION: Region;
     const WIDTH: usize;
